@@ -88,7 +88,11 @@ all_done = current_index >= len(PROMPTS)
 
 if not all_done and not st.session_state.question_asked:
     question = PROMPTS[current_index]
-    st.session_state.messages.append({"role": "assistant", "content": question, "audio": speak(question)})
+    st.session_state.messages.append({
+        "role": "assistant",
+        "content": question,
+        "audio": speak(question),
+    })
     st.session_state.question_asked = True
 
 # ── Render chat history ───────────────────────────────────────────────────────
@@ -98,9 +102,9 @@ for msg in st.session_state.messages:
         if "audio" in msg:
             st.audio(msg["audio"], format="audio/mp3", autoplay=False)
 
-# ── All done state ────────────────────────────────────────────────────────────
+# ── All done ──────────────────────────────────────────────────────────────────
 if all_done:
-    st.success("✅ Great practice! You've completed all questions.")
+    st.success("✅ Great practice! You've completed all 5 questions.")
     if st.button("Start over"):
         st.session_state.messages = []
         st.session_state.prompt_index = 0
@@ -108,41 +112,42 @@ if all_done:
         st.rerun()
     st.stop()
 
-# ── Voice + text input ────────────────────────────────────────────────────────
+# ── Progress ──────────────────────────────────────────────────────────────────
+st.caption(f"Question {current_index + 1} of {len(PROMPTS)}")
+st.progress(current_index / len(PROMPTS))
+
+# ── Input area ────────────────────────────────────────────────────────────────
 st.markdown("---")
 col1, col2 = st.columns([1, 3])
+
 with col1:
-    st.markdown("**🎤 Record answer:**")
+    st.markdown("**🎤 Tap to start · tap again to stop**")
+    # KEY changes with each question — this resets the recorder automatically
+    # so the previous answer is never reused for the next question
     audio_bytes = audio_recorder(
         text="",
         recording_color="#e85d04",
         neutral_color="#6c757d",
         icon_size="2x",
-        pause_threshold=2.5,
+        pause_threshold=3.0,
+        key=f"recorder_{current_index}",  # ← FIX: unique key per question
     )
+
 with col2:
     st.markdown("**⌨️ Or type your answer:**")
     text_input = st.chat_input("Type your answer here...")
 
-# ── Progress indicator ────────────────────────────────────────────────────────
-st.caption(f"Question {current_index + 1} of {len(PROMPTS)}")
-st.progress((current_index) / len(PROMPTS))
-
-# ── Process voice input ───────────────────────────────────────────────────────
+# ── Process answer ────────────────────────────────────────────────────────────
 def handle_answer(user_text: str):
     st.session_state.messages.append({"role": "user", "content": f"🎤 {user_text}"})
-
     with st.spinner("Reviewing your sentence..."):
         feedback = correct_grammar(user_text)
-
     audio_feedback = speak(feedback)
     st.session_state.messages.append({
         "role": "assistant",
         "content": feedback,
         "audio": audio_feedback,
     })
-
-    # Advance to next question
     st.session_state.prompt_index += 1
     st.session_state.question_asked = False
     st.rerun()
