@@ -32,35 +32,30 @@ def get_agent():
         sound more natural in everyday conversation.
 
         Your focus is spoken fluency — how a fluent English speaker would naturally say something
-        in real conversation. You are NOT a grammar checker and do NOT focus on written grammar rules.
+        in real conversation. You are NOT a grammar checker.
 
-        When the student gives a response, follow these rules:
+        When the student gives a response:
 
-        1. ASSESS naturalness: Would a fluent English speaker say it this way in casual conversation?
+        1. If the sentence sounds UNNATURAL or STIFF:
+           - Start with "A more natural way to say this is: ..."
+           - Add one sentence explaining why. Focus on word choice or phrasing, not grammar rules.
+           - Maximum 3 sentences total.
 
-        2. If the sentence sounds UNNATURAL or STIFF:
-           - Offer a more natural way to say it, starting with "A more natural way to say this is: ..."
-           - Briefly explain WHY it sounds more natural in 1 sentence. Focus on word choice,
-             phrasing, or flow — not grammar rules.
-           - Keep your full response to 3 sentences maximum.
+        2. If the sentence already sounds NATURAL and FLUENT:
+           - Give a short warm acknowledgement like "That sounds great!" or "Very natural!"
+           - Do NOT suggest rewrites or alternatives.
 
-        3. If the sentence already sounds NATURAL and FLUENT:
-           - Give a short, warm acknowledgement like "That sounds great!" or "Very natural!"
-           - Do NOT suggest rewrites. Do NOT offer alternatives.
-           - Move on naturally, as if in a real conversation.
-
-        Examples of unnatural → natural upgrades:
+        Examples:
         - "I ate rice for breakfast" → "I had rice for breakfast"
         - "I am going to the market for buying vegetables" → "I'm going to the market to buy some vegetables"
-        - "She is very funny person" → "She's such a funny person"
         - "I work in a school from 5 years" → "I've been working at a school for 5 years"
 
-        Always be warm, encouraging, and brief. Never lecture.""",
+        Always be warm, encouraging, and brief.""",
         llm="groq/llama-3.3-70b-versatile",
         verbose=False,
     )
 
-# ── Large topic pool — 5 picked randomly each session ────────────────────────
+# ── Topic pool ────────────────────────────────────────────────────────────────
 ALL_PROMPTS = [
     "Tell me what you did this morning.",
     "Describe your favourite food.",
@@ -108,7 +103,7 @@ def get_feedback(sentence: str) -> str:
         description=(
             f"The student said: \"{sentence}\"\n"
             f"Assess whether this sounds natural in spoken English. "
-            f"If it needs improvement, offer a more natural way to say it and explain why in one sentence. "
+            f"If it needs improvement, offer a more natural version and explain why in one sentence. "
             f"If it already sounds fluent and natural, give a brief warm acknowledgement only."
         ),
         expected_output=(
@@ -136,21 +131,18 @@ def autoplay_audio(b64: str):
 
 # ── Session state ─────────────────────────────────────────────────────────────
 if "prompts" not in st.session_state:
-    # Pick a fresh random set of questions for this session
     st.session_state.prompts = random.sample(ALL_PROMPTS, QUESTIONS_PER_SESSION)
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "prompt_index" not in st.session_state:
     st.session_state.prompt_index = 0
-if "question_asked" not in st.session_state:
-    st.session_state.question_asked = False
 if "audio_enabled" not in st.session_state:
     st.session_state.audio_enabled = True
-if "last_played_index" not in st.session_state:
-    st.session_state.last_played_index = -1
-if "feedback_played" not in st.session_state:
-    # True = feedback has been spoken, safe to show next question
-    st.session_state.feedback_played = True
+# States: "waiting_for_answer" | "showing_feedback"
+if "state" not in st.session_state:
+    st.session_state.state = "waiting_for_answer"
+if "pending_audio" not in st.session_state:
+    st.session_state.pending_audio = None
 
 # ── Audio toggle ──────────────────────────────────────────────────────────────
 col_tog, _ = st.columns([1, 5])
@@ -162,38 +154,37 @@ with col_tog:
 
 st.divider()
 
-# ── Ask the current question (only after feedback has been spoken) ─────────────
 current_index = st.session_state.prompt_index
 all_done = current_index >= QUESTIONS_PER_SESSION
 
-if not all_done and not st.session_state.question_asked and st.session_state.feedback_played:
+# ── Load current question into chat if not yet shown ─────────────────────────
+if not all_done and st.session_state.state == "waiting_for_answer":
     question = st.session_state.prompts[current_index]
-    st.session_state.messages.append({
-        "role": "assistant",
-        "content": question,
-        "audio_b64": make_audio_b64(question),
-    })
-    st.session_state.question_asked = True
+    # Only add if not already the last message
+    if not st.session_state.messages or st.session_state.messages[-1].get("content") != question:
+        audio_b64 = make_audio_b64(question)
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": question,
+            "audio_b64": audio_b64,
+        })
+        st.session_state.pending_audio = audio_b64
 
 # ── Render chat history ───────────────────────────────────────────────────────
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# ── Autoplay unplayed assistant messages one at a time ────────────────────────
-if st.session_state.audio_enabled:
-    for i, msg in enumerate(st.session_state.messages):
-        if i > st.session_state.last_played_index and msg["role"] == "assistant" and "audio_b64" in msg:
-            autoplay_audio(msg["audio_b64"])
-            st.session_state.last_played_index = i
-            break  # ← play ONE message per rerun, prevents overlap
+# ── Play pending audio (one shot) ────────────────────────────────────────────
+if st.session_state.audio_enabled and st.session_state.pending_audio:
+    autoplay_audio(st.session_state.pending_audio)
+    st.session_state.pending_audio = None
 
 # ── All done ──────────────────────────────────────────────────────────────────
 if all_done:
     st.success("✅ Great practice! You've completed all questions.")
     if st.button("Start over with new questions"):
-        for key in ["messages", "prompt_index", "question_asked",
-                    "last_played_index", "feedback_played", "prompts"]:
+        for key in ["messages", "prompt_index", "state", "pending_audio", "prompts"]:
             del st.session_state[key]
         st.rerun()
     st.stop()
@@ -201,56 +192,56 @@ if all_done:
 # ── Progress ──────────────────────────────────────────────────────────────────
 st.caption(f"Question {current_index + 1} of {QUESTIONS_PER_SESSION}")
 st.progress(current_index / QUESTIONS_PER_SESSION)
-
-# ── Input ─────────────────────────────────────────────────────────────────────
 st.markdown("---")
-col1, col2 = st.columns([1, 3])
-with col1:
-    st.markdown("**🎤 Tap to start · tap again to stop**")
-    audio_bytes = audio_recorder(
-        text="",
-        recording_color="#e85d04",
-        neutral_color="#6c757d",
-        icon_size="2x",
-        pause_threshold=3.0,
-        key=f"recorder_{current_index}",
-    )
-with col2:
-    st.markdown("**⌨️ Or type your answer:**")
-    text_input = st.chat_input("Type your answer here...")
 
-# ── Process answer ────────────────────────────────────────────────────────────
-def handle_answer(user_text: str):
-    st.session_state.messages.append({"role": "user", "content": user_text})
-    with st.spinner("Listening..."):
-        feedback = get_feedback(user_text)
-    st.session_state.messages.append({
-        "role": "assistant",
-        "content": feedback,
-        "audio_b64": make_audio_b64(feedback),
-    })
-    # Mark feedback as not yet played — next question waits until this rerun plays it
-    st.session_state.feedback_played = False
-    st.session_state.prompt_index += 1
-    st.session_state.question_asked = False
-    st.rerun()
+# ── STATE: waiting for answer ─────────────────────────────────────────────────
+if st.session_state.state == "waiting_for_answer":
+    col1, col2 = st.columns([1, 3])
+    with col1:
+        st.markdown("**🎤 Tap to start · tap again to stop**")
+        audio_bytes = audio_recorder(
+            text="",
+            recording_color="#e85d04",
+            neutral_color="#6c757d",
+            icon_size="2x",
+            pause_threshold=3.0,
+            key=f"recorder_{current_index}",
+        )
+    with col2:
+        st.markdown("**⌨️ Or type your answer:**")
+        text_input = st.chat_input("Type your answer here...")
 
-# After feedback has been spoken (last_played_index caught up), mark it done
-# and trigger a rerun to load the next question
-if not st.session_state.feedback_played:
-    if st.session_state.messages and st.session_state.last_played_index >= len(st.session_state.messages) - 1:
-        st.session_state.feedback_played = True
+    def handle_answer(user_text: str):
+        st.session_state.messages.append({"role": "user", "content": user_text})
+        with st.spinner("Listening..."):
+            feedback = get_feedback(user_text)
+        audio_b64 = make_audio_b64(feedback)
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": feedback,
+            "audio_b64": audio_b64,
+        })
+        # Queue feedback audio and switch to feedback state
+        st.session_state.pending_audio = audio_b64
+        st.session_state.state = "showing_feedback"
         st.rerun()
 
-if audio_bytes and len(audio_bytes) > 1000:
-    with st.spinner("Transcribing..."):
-        try:
-            user_text = transcribe(audio_bytes)
-        except Exception as e:
-            st.error(f"Transcription failed: {e}")
-            user_text = None
-    if user_text:
-        handle_answer(user_text)
+    if audio_bytes and len(audio_bytes) > 1000:
+        with st.spinner("Transcribing..."):
+            try:
+                user_text = transcribe(audio_bytes)
+            except Exception as e:
+                st.error(f"Transcription failed: {e}")
+                user_text = None
+        if user_text:
+            handle_answer(user_text)
 
-elif text_input:
-    handle_answer(text_input)
+    elif text_input:
+        handle_answer(text_input)
+
+# ── STATE: showing feedback — wait for user to press Next ────────────────────
+elif st.session_state.state == "showing_feedback":
+    if st.button("Next question →", use_container_width=False, type="primary"):
+        st.session_state.prompt_index += 1
+        st.session_state.state = "waiting_for_answer"
+        st.rerun()
