@@ -117,35 +117,16 @@ def autoplay_audio(b64: str):
         unsafe_allow_html=True,
     )
 
-def play_sequential(b64_list: list):
-    """Play a list of audio clips one after another — each waits for the previous to finish."""
-    clips_js = ", ".join(f'"{b}"' for b in b64_list)
-    st.markdown(f"""
-    <script>
-    (function() {{
-        const clips = [{clips_js}];
-        let i = 0;
-        function playNext() {{
-            if (i >= clips.length) return;
-            const audio = new Audio('data:audio/mp3;base64,' + clips[i]);
-            i++;
-            audio.onended = playNext;
-            audio.play();
-        }}
-        playNext();
-    }})();
-    </script>
-    """, unsafe_allow_html=True)
-
 # ── Session state ─────────────────────────────────────────────────────────────
-if "topic"         not in st.session_state: st.session_state.topic         = random.choice(TOPICS)
-if "messages"      not in st.session_state: st.session_state.messages      = []
-if "comments"      not in st.session_state: st.session_state.comments      = []
-if "turn_count"    not in st.session_state: st.session_state.turn_count    = 0
-if "audio_enabled" not in st.session_state: st.session_state.audio_enabled = True
-if "pending_audio" not in st.session_state: st.session_state.pending_audio = None
-if "started"       not in st.session_state: st.session_state.started       = False
-if "finished"      not in st.session_state: st.session_state.finished      = False
+if "topic"          not in st.session_state: st.session_state.topic          = random.choice(TOPICS)
+if "messages"       not in st.session_state: st.session_state.messages       = []
+if "comments"       not in st.session_state: st.session_state.comments       = []
+if "turn_count"     not in st.session_state: st.session_state.turn_count     = 0
+if "audio_enabled"  not in st.session_state: st.session_state.audio_enabled  = True
+if "pending_audio"  not in st.session_state: st.session_state.pending_audio  = None
+if "started"        not in st.session_state: st.session_state.started        = False
+if "finished"       not in st.session_state: st.session_state.finished       = False
+if "review_index"   not in st.session_state: st.session_state.review_index   = 0  # which comment to play next
 
 topic = st.session_state.topic
 
@@ -173,27 +154,43 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# ── Play single pending audio (questions only during conversation) ─────────────
+# ── Play single pending audio ─────────────────────────────────────────────────
 if st.session_state.audio_enabled and st.session_state.pending_audio:
     autoplay_audio(st.session_state.pending_audio)
     st.session_state.pending_audio = None
 
-# ── FINISHED: auto-speak all comments, then show New Topic button ─────────────
+# ── FINISHED: review mode ─────────────────────────────────────────────────────
 if st.session_state.finished:
-    st.info("💬 Scroll up to read your fluency comments while you listen.")
-    if st.session_state.audio_enabled and st.session_state.comments:
-        # Build intro + each comment as a numbered audio clip and play all sequentially
-        intro = "Here are your fluency comments."
-        clips = [make_audio_b64(intro)]
-        for i, comment in enumerate(st.session_state.comments, 1):
-            clips.append(make_audio_b64(f"Comment {i}. {comment}"))
-        play_sequential(clips)
+    comments = st.session_state.comments
+    review_index = st.session_state.review_index
+    total = len(comments)
 
-    if st.button("🔄 New topic", type="primary"):
-        for key in ["topic", "messages", "comments", "turn_count",
-                    "pending_audio", "started", "finished"]:
-            del st.session_state[key]
-        st.rerun()
+    st.markdown("---")
+
+    if review_index < total:
+        # Currently playing a comment
+        current_comment = comments[review_index]
+        st.info(f"**Comment {review_index + 1} of {total}:** {current_comment}")
+
+        # Autoplay this comment
+        if st.session_state.audio_enabled:
+            autoplay_audio(make_audio_b64(f"Comment {review_index + 1}. {current_comment}"))
+
+        # Button to advance to next comment
+        btn_label = "Next comment ▶" if review_index + 1 < total else "Finish review ✓"
+        if st.button(btn_label, type="primary", use_container_width=False):
+            st.session_state.review_index += 1
+            st.rerun()
+
+    else:
+        # All comments played
+        st.success("✅ Review complete! Great work today.")
+        if st.button("🔄 New topic", type="primary"):
+            for key in ["topic", "messages", "comments", "turn_count",
+                        "pending_audio", "started", "finished", "review_index"]:
+                del st.session_state[key]
+            st.rerun()
+
     st.stop()
 
 # ── Progress ──────────────────────────────────────────────────────────────────
@@ -230,8 +227,9 @@ def handle_answer(user_text: str):
     st.session_state.messages.append({"role": "assistant", "content": f"💬 {comment}"})
 
     if is_last:
-        closing = "Great conversation! Let me give you some feedback now."
+        closing = "Great conversation! Now let's go through your fluency feedback."
         st.session_state.messages.append({"role": "assistant", "content": closing})
+        st.session_state.pending_audio = make_audio_b64(closing)
         st.session_state.finished = True
     else:
         if question:
