@@ -99,6 +99,9 @@ export async function POST(request: NextRequest) {
       lastQuestion: reply,
     });
 
+    console.log('DEBUG respond reply length:', reply.length);
+    console.log('DEBUG respond reply:', reply);
+
     return NextResponse.json({
       reply,
       reply_audio: '', // TTS will be called separately by the client
