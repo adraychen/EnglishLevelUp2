@@ -20,7 +20,7 @@ function ChatContent() {
   });
 
   const { isRecording, isTranscribing, startRecording, stopRecording } = useAudioRecorder();
-  const { playMp3 } = useAudioPlayer();
+  const { speak } = useAudioPlayer();
 
   const [showReview, setShowReview] = useState(false);
   const [reviewContent, setReviewContent] = useState('');
@@ -31,11 +31,8 @@ function ChatContent() {
   // Initialize session on mount
   useEffect(() => {
     const initSession = async () => {
-      const audio = await switchStyle(initialStyle, initialTopicId);
+      await switchStyle(initialStyle, initialTopicId);
       setInitialized(true);
-      if (audio) {
-        playMp3(audio);
-      }
     };
     initSession();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -45,8 +42,9 @@ function ChatContent() {
   useEffect(() => {
     if (initialized && session.opening && messages.length === 0 && !session.isLoading) {
       addCoachMessage(session.opening);
+      speak(session.opening);
     }
-  }, [initialized, session.opening, session.isLoading, messages.length, addCoachMessage]);
+  }, [initialized, session.opening, session.isLoading, messages.length, addCoachMessage, speak]);
 
   // Handle session complete
   useEffect(() => {
@@ -62,11 +60,11 @@ function ChatContent() {
   const handleSend = useCallback(
     async (text: string) => {
       const result = await sendMessage(text);
-      if (result?.audio) {
-        playMp3(result.audio);
+      if (result?.reply) {
+        speak(result.reply);
       }
     },
-    [sendMessage, playMp3]
+    [sendMessage, speak]
   );
 
   const handleStartRecording = useCallback(async () => {
@@ -87,13 +85,10 @@ function ChatContent() {
   const handleSwitchStyle = useCallback(
     async (style: CoachStyle) => {
       clearMessages();
-      const audio = await switchStyle(style);
-      // Opening will be added by the useEffect watching session.opening
-      if (audio) {
-        playMp3(audio);
-      }
+      await switchStyle(style);
+      // Opening will be added and spoken by the useEffect watching session.opening
     },
-    [switchStyle, clearMessages, playMp3]
+    [switchStyle, clearMessages]
   );
 
   const handleEndConversation = useCallback(async () => {
@@ -119,12 +114,9 @@ function ChatContent() {
     setReviewContent('');
     setPracticeTurns([]);
     clearMessages();
-
-    const audio = await resetSession();
-    if (audio) {
-      playMp3(audio);
-    }
-  }, [resetSession, clearMessages, playMp3]);
+    await resetSession();
+    // Opening will be added and spoken by the useEffect watching session.opening
+  }, [resetSession, clearMessages]);
 
   const handleStartPractice = useCallback(() => {
     if (practiceTurns.length > 0) {

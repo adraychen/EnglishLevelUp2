@@ -26,10 +26,9 @@ export const ShadowingPractice: React.FC<ShadowingPracticeProps> = ({
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [completedIndices, setCompletedIndices] = useState<Set<number>>(new Set());
-  const [isLoadingAudio, setIsLoadingAudio] = useState(false);
 
   const { isRecording, startRecording, stopRecording, cancelRecording } = useAudioRecorder();
-  const { isPlaying, playMp3, stop: stopAudio } = useAudioPlayer();
+  const { isPlaying, speak, stop: stopAudio } = useAudioPlayer();
 
   // Flatten turns into a sequence of practice steps
   const steps = useMemo<PracticeStep[]>(() => {
@@ -63,36 +62,15 @@ export const ShadowingPractice: React.FC<ShadowingPracticeProps> = ({
   const isLastStep = currentIndex === steps.length - 1;
   const allCompleted = completedIndices.size === steps.length;
 
-  // Fetch TTS for a line
-  const fetchTTS = useCallback(async (text: string): Promise<string> => {
-    try {
-      const res = await fetch('/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-      });
-      const data = await res.json();
-      return data.audio || '';
-    } catch {
-      return '';
-    }
-  }, []);
-
-  // Handle playing Morgan's line
+  // Handle playing Morgan's line using browser TTS
   const handlePlayMorgan = useCallback(async () => {
     if (!currentStep || currentStep.type !== 'morgan' || isPlaying) return;
 
-    setIsLoadingAudio(true);
-    const audio = await fetchTTS(currentStep.text);
-    setIsLoadingAudio(false);
-
-    if (audio) {
-      await playMp3(audio);
-    }
+    await speak(currentStep.text);
 
     // Mark as completed after playing
     setCompletedIndices((prev) => new Set(prev).add(currentIndex));
-  }, [currentStep, currentIndex, isPlaying, fetchTTS, playMp3]);
+  }, [currentStep, currentIndex, isPlaying, speak]);
 
   // Handle recording student's line
   const handleStartRecording = useCallback(async () => {
@@ -185,7 +163,7 @@ export const ShadowingPractice: React.FC<ShadowingPracticeProps> = ({
             originalText={currentStep.originalText}
             isActive={true}
             isCompleted={completedIndices.has(currentIndex)}
-            isPlaying={isPlaying || isLoadingAudio}
+            isPlaying={isPlaying}
             isRecording={isRecording}
             onPlay={handlePlayMorgan}
             onRecord={handleStartRecording}
