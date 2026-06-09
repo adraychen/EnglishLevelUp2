@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
     if (style === 'clear') {
       // Morgan — load topic
       topic = await getNextTopic();
+      console.log('DEBUG topic:', JSON.stringify(topic, null, 2));
 
       if (topic) {
         topicId = topic.id;
