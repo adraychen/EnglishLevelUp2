@@ -2,6 +2,7 @@
 
 import React, { Suspense, useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { ChatBox, ChatInput, CoachToggle } from '@/components/chat';
 import { useSession, useChat, useAudioRecorder, useAudioPlayer } from '@/hooks';
 import { CoachStyle, PracticeTurn } from '@/types';
@@ -10,6 +11,8 @@ import { ReviewModal } from '@/components/review/ReviewModal';
 function ChatContent() {
   const searchParams = useSearchParams();
   const initialStyle = (searchParams.get('style') as CoachStyle) || 'casual';
+  const topicIdParam = searchParams.get('topicId');
+  const initialTopicId = topicIdParam ? parseInt(topicIdParam, 10) : undefined;
 
   const { session, switchStyle, resetSession } = useSession(initialStyle);
   const { messages, isLoading, sessionComplete, sendMessage, getSummary, clearMessages, addCoachMessage } = useChat({
@@ -28,7 +31,7 @@ function ChatContent() {
   // Initialize session on mount
   useEffect(() => {
     const initSession = async () => {
-      const audio = await switchStyle(initialStyle);
+      const audio = await switchStyle(initialStyle, initialTopicId);
       if (audio) {
         playMp3(audio);
       }
@@ -128,9 +131,14 @@ function ChatContent() {
       {/* Header */}
       <nav className="bg-white border-b border-slate-200 px-4 py-3">
         <div className="max-w-2xl mx-auto flex items-center justify-between flex-wrap gap-2">
-          <span className="font-semibold text-slate-800">
-            English Conversation Coach
-          </span>
+          <div className="flex items-center gap-4">
+            <Link href="/dashboard" className="text-slate-600 hover:text-slate-800 text-sm">
+              Dashboard
+            </Link>
+            <span className="font-semibold text-slate-800">
+              English Conversation Coach
+            </span>
+          </div>
           <CoachToggle
             currentStyle={session.style}
             coachName={session.coachName}

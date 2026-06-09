@@ -1,6 +1,15 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth";
 
-export default function Home() {
+export default async function Home() {
+  const user = await getCurrentUser();
+
+  // Redirect logged-in users to dashboard
+  if (user) {
+    redirect("/dashboard");
+  }
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6">
       <div className="max-w-md w-full text-center space-y-8">
@@ -15,10 +24,7 @@ export default function Home() {
         </div>
 
         <div className="grid gap-4">
-          <Link
-            href="/chat?style=casual"
-            className="block p-6 bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-shadow"
-          >
+          <div className="block p-6 bg-white border border-slate-200 rounded-xl shadow-sm">
             <div className="text-2xl mb-2">Dora</div>
             <div className="text-lg font-semibold text-slate-800 mb-1">
               Casual Conversation
@@ -27,12 +33,9 @@ export default function Home() {
               Free, natural chat on any subject. Great for intermediate to
               advanced learners.
             </p>
-          </Link>
+          </div>
 
-          <Link
-            href="/chat?style=clear"
-            className="block p-6 bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-shadow"
-          >
+          <div className="block p-6 bg-white border border-slate-200 rounded-xl shadow-sm">
             <div className="text-2xl mb-2">Morgan</div>
             <div className="text-lg font-semibold text-slate-800 mb-1">
               Topic-Led Practice
@@ -40,6 +43,21 @@ export default function Home() {
             <p className="text-sm text-slate-600">
               Structured lessons with vocabulary building. Great for beginners.
             </p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <Link
+            href="/login"
+            className="block w-full py-3 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition"
+          >
+            Sign In
+          </Link>
+          <Link
+            href="/register"
+            className="block w-full py-3 border border-slate-300 text-slate-700 font-medium rounded-xl hover:bg-slate-50 transition"
+          >
+            Create Account
           </Link>
         </div>
 

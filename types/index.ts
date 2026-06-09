@@ -76,3 +76,95 @@ export interface LearningLogEntry {
   had_error: boolean;
   created_at?: string;
 }
+
+// User and auth types
+export type UserRole = 'student' | 'teacher';
+
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+  password_hash: string;
+  role: UserRole;
+  created_at: string;
+}
+
+export interface UserProfile {
+  id: number;
+  name: string;
+  email: string;
+  role: UserRole;
+}
+
+// Session tracking types
+export interface DbSession {
+  id: number;
+  user_id: number;
+  topic: string;
+  topic_id?: number;
+  session_number: number;
+  date: string;
+  analysis?: SessionAnalysis;
+}
+
+export interface Turn {
+  id?: number;
+  session_id: number;
+  turn_number: number;
+  app_question: string;
+  student_speech: string;
+  fluency_comment: string;
+}
+
+export interface SessionAnalysis {
+  id?: number;
+  session_id: number;
+  vocabulary_score: number;
+  vocabulary_note: string;
+  phrasing_score: number;
+  phrasing_note: string;
+  structure_score: number;
+  structure_note: string;
+  overall_score: number;
+  overall_note: string;
+  suggestion: string;
+  created_at?: string;
+}
+
+export interface ProgressReport {
+  id?: number;
+  user_id: number;
+  report_number: number;
+  sessions_from: number;
+  sessions_to: number;
+  vocabulary_score: number;
+  vocabulary_label: string;
+  vocabulary_description: string;
+  phrasing_score: number;
+  phrasing_label: string;
+  phrasing_description: string;
+  structure_score: number;
+  structure_label: string;
+  structure_description: string;
+  overall_score: number;
+  overall_label: string;
+  improvement_description: string;
+  generated_at?: string;
+}
+
+// Dashboard response types
+export interface DashboardData {
+  user: UserProfile;
+  sessions: DbSession[];
+  reports: ProgressReport[];
+  topics: Topic[];
+}
+
+export interface StudentSummary {
+  id: number;
+  name: string;
+  email: string;
+  session_count: number;
+  latest_score?: number;
+  latest_session_date?: string;
+}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getNextTopic } from '@/lib/db';
+import { getServerSupabase } from '@/lib/supabase';
 import { CoachStyle, CoachName, Topic } from '@/types';
 
 async function setSession(data: Record<string, unknown>) {
@@ -48,6 +49,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const style: CoachStyle = body.style === 'casual' ? 'casual' : 'clear';
+    const requestedTopicId: number | undefined = body.topicId;
     const coachName: CoachName = style === 'casual' ? 'Dora' : 'Morgan';
 
     let opening = 'Say anything to start chatting!';
@@ -56,8 +58,26 @@ export async function POST(request: NextRequest) {
     let taughtWords: string[] = [];
 
     if (style === 'clear') {
-      // Morgan — load topic
-      topic = await getNextTopic();
+      // Morgan — load topic (either requested or next in sequence)
+      if (requestedTopicId) {
+        // Load specific topic by ID
+        const supabase = getServerSupabase();
+        const { data: requestedTopic } = await supabase
+          .from('eec_topics')
+          .select('*')
+          .eq('id', requestedTopicId)
+          .single();
+
+        if (requestedTopic) {
+          topic = { ...requestedTopic, already_taught: [] };
+        }
+      }
+
+      // Fall back to next topic if no specific topic requested or found
+      if (!topic) {
+        topic = await getNextTopic();
+      }
+
       console.log('DEBUG topic:', JSON.stringify(topic, null, 2));
 
       if (topic) {

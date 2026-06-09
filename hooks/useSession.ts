@@ -28,8 +28,8 @@ export function useSession(initialStyle: CoachStyle = 'casual') {
     coachName: initialStyle === 'casual' ? 'Dora' : 'Morgan',
   });
 
-  const switchStyle = useCallback(async (newStyle: CoachStyle) => {
-    if (newStyle === session.style) return;
+  const switchStyle = useCallback(async (newStyle: CoachStyle, topicId?: number) => {
+    if (newStyle === session.style && !topicId) return;
 
     setSession((prev) => ({ ...prev, isLoading: true }));
 
@@ -37,7 +37,7 @@ export function useSession(initialStyle: CoachStyle = 'casual') {
       const res = await fetch('/api/set-style', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ style: newStyle }),
+        body: JSON.stringify({ style: newStyle, topicId }),
       });
 
       const data = await res.json();
