@@ -291,9 +291,18 @@ Reply as Morgan — a warm, engaging host. Stay on ${focus}.`;
       { role: 'system', content: system },
       { role: 'user', content: userPrompt },
     ],
-    max_tokens: 350,
+    max_tokens: 500,
     temperature: 0.8,
   });
 
-  return response.choices[0]?.message?.content?.trim() || '';
+  const content = response.choices[0]?.message?.content?.trim() || '';
+  const finishReason = response.choices[0]?.finish_reason;
+
+  console.log('DEBUG Groq response length:', content.length);
+  console.log('DEBUG Groq finish_reason:', finishReason);
+  if (finishReason === 'length') {
+    console.log('WARNING: Response was truncated due to max_tokens limit');
+  }
+
+  return content;
 }
