@@ -17,7 +17,6 @@ function ChatContent() {
   const { session, switchStyle, resetSession } = useSession(initialStyle);
   const { messages, isLoading, sessionComplete, sendMessage, getSummary, clearMessages, addCoachMessage } = useChat({
     coachName: session.coachName,
-    initialMessage: session.opening,
   });
 
   const { isRecording, isTranscribing, startRecording, stopRecording } = useAudioRecorder();
@@ -27,11 +26,13 @@ function ChatContent() {
   const [reviewContent, setReviewContent] = useState('');
   const [practiceTurns, setPracticeTurns] = useState<PracticeTurn[]>([]);
   const [isLoadingReview, setIsLoadingReview] = useState(false);
+  const [initialized, setInitialized] = useState(false);
 
   // Initialize session on mount
   useEffect(() => {
     const initSession = async () => {
       const audio = await switchStyle(initialStyle, initialTopicId);
+      setInitialized(true);
       if (audio) {
         playMp3(audio);
       }
@@ -39,6 +40,13 @@ function ChatContent() {
     initSession();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Add opening message when session opening changes and no messages exist
+  useEffect(() => {
+    if (initialized && session.opening && messages.length === 0 && !session.isLoading) {
+      addCoachMessage(session.opening);
+    }
+  }, [initialized, session.opening, session.isLoading, messages.length, addCoachMessage]);
 
   // Handle session complete
   useEffect(() => {
@@ -80,6 +88,7 @@ function ChatContent() {
     async (style: CoachStyle) => {
       clearMessages();
       const audio = await switchStyle(style);
+      // Opening will be added by the useEffect watching session.opening
       if (audio) {
         playMp3(audio);
       }
