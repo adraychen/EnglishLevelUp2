@@ -73,7 +73,19 @@ export async function POST(request: NextRequest) {
           }
         } else {
           // First session for this topic
-          opening = topic.opening || 'Say anything to start chatting!';
+          // Handle JSON array format: [{"opening": "..."}]
+          let rawOpening = topic.opening;
+          if (rawOpening && typeof rawOpening === 'string' && rawOpening.trim().startsWith('[')) {
+            try {
+              const parsed = JSON.parse(rawOpening);
+              if (Array.isArray(parsed) && parsed[0]?.opening) {
+                rawOpening = parsed[0].opening;
+              }
+            } catch {
+              // Use as-is if parsing fails
+            }
+          }
+          opening = rawOpening || 'Say anything to start chatting!';
         }
       }
     }
