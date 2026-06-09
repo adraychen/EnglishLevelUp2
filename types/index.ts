@@ -62,10 +62,10 @@ export interface Topic {
   topic_order: number;
   name: string;
   level: string;
-  opening: string;
+  opening: string | Array<{ opening: string }>;
   vocabulary_pool: string;
   focus_keyword: string;
-  coach_views?: string;
+  coach_views?: string | Array<{ coach_views: string }>;
 }
 
 export interface LearningLogEntry {

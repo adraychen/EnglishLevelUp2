@@ -196,7 +196,28 @@ export async function getChatResponse({
     system = MORGAN_SYSTEM;
 
     const pool = topic?.vocabulary_pool || '';
-    const coachViews = topic?.coach_views || '';
+
+    // Handle coach_views in various formats (string or JSONB array)
+    let coachViews = '';
+    const rawCoachViews = topic?.coach_views;
+    if (Array.isArray(rawCoachViews) && rawCoachViews[0]?.coach_views) {
+      coachViews = rawCoachViews[0].coach_views;
+    } else if (typeof rawCoachViews === 'string') {
+      if (rawCoachViews.trim().startsWith('[')) {
+        try {
+          const parsed = JSON.parse(rawCoachViews);
+          if (Array.isArray(parsed) && parsed[0]?.coach_views) {
+            coachViews = parsed[0].coach_views;
+          } else {
+            coachViews = rawCoachViews;
+          }
+        } catch {
+          coachViews = rawCoachViews;
+        }
+      } else {
+        coachViews = rawCoachViews;
+      }
+    }
     const topicName = topic?.name || '';
     const level = topic?.level || '';
     const focusKeyword = topic?.focus_keyword || '';

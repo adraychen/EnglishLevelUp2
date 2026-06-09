@@ -73,19 +73,35 @@ export async function POST(request: NextRequest) {
           }
         } else {
           // First session for this topic
-          // Handle JSON array format: [{"opening": "..."}]
-          let rawOpening = topic.opening;
-          if (rawOpening && typeof rawOpening === 'string' && rawOpening.trim().startsWith('[')) {
+          // Handle opening in various formats:
+          // - Plain string: "Hello..."
+          // - JSON array (parsed by Supabase): [{opening: "..."}]
+          // - JSON string: '[{"opening": "..."}]'
+          const rawOpening = topic.opening;
+          let openingText = '';
+
+          // If it's already an array (JSONB parsed by Supabase)
+          if (Array.isArray(rawOpening) && rawOpening[0]?.opening) {
+            openingText = rawOpening[0].opening;
+          }
+          // If it's a JSON string
+          else if (typeof rawOpening === 'string' && rawOpening.trim().startsWith('[')) {
             try {
               const parsed = JSON.parse(rawOpening);
               if (Array.isArray(parsed) && parsed[0]?.opening) {
-                rawOpening = parsed[0].opening;
+                openingText = parsed[0].opening;
+              } else {
+                openingText = rawOpening;
               }
             } catch {
-              // Use as-is if parsing fails
+              openingText = rawOpening;
             }
           }
-          opening = rawOpening || 'Say anything to start chatting!';
+          // Plain string
+          else if (typeof rawOpening === 'string') {
+            openingText = rawOpening;
+          }
+          opening = openingText || 'Say anything to start chatting!';
         }
       }
     }
