@@ -22,7 +22,7 @@ async function generateTTS(text: string, lang: string = 'en'): Promise<string> {
     return '';
   }
 
-  const truncatedText = text.slice(0, 200);
+  const truncatedText = text.slice(0, 500);
   const encodedText = encodeURIComponent(truncatedText);
 
   const urls = [

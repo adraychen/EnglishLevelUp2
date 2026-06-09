@@ -11,7 +11,7 @@ async function generateTTS(text: string, lang: string = 'en'): Promise<string> {
   }
 
   // Truncate to prevent issues with long text
-  const truncatedText = text.slice(0, 200);
+  const truncatedText = text.slice(0, 500);
   const encodedText = encodeURIComponent(truncatedText);
 
   // Try multiple URL patterns
