@@ -26,6 +26,10 @@ export const getServerSupabase = () => {
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+    console.log('DEBUG supabaseUrl:', supabaseUrl ? `"${supabaseUrl}"` : 'undefined');
+    console.log('DEBUG has anonKey:', !!supabaseAnonKey);
+    console.log('DEBUG has serviceKey:', !!serviceRoleKey);
+
     if (!supabaseUrl) {
       throw new Error('NEXT_PUBLIC_SUPABASE_URL not configured');
     }
