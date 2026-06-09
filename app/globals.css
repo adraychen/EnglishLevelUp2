@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+:root {
+  --font-sans: var(--font-inter);
+}
+
+@theme inline {
+  --font-sans: var(--font-inter);
+}
+
+/* Custom animations */
+@keyframes pulse-recording {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+.animate-pulse-recording {
+  animation: pulse-recording 1s infinite;
+}
+
+/* Smooth scrolling for chat */
+.chat-scroll {
+  scroll-behavior: smooth;
+}
+
+/* Hide scrollbar but keep functionality */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
