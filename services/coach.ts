@@ -196,7 +196,7 @@ export async function getChatResponse({
     system = MORGAN_SYSTEM;
 
     const pool = topic?.vocabulary_pool || '';
-    const coachViews = topic?.sample_coach_views || '';
+    const coachViews = topic?.coach_views || '';
     const topicName = topic?.name || '';
     const level = topic?.level || '';
     const focusKeyword = topic?.focus_keyword || '';

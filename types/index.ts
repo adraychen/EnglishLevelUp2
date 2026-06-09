@@ -65,7 +65,7 @@ export interface Topic {
   opening: string;
   vocabulary_pool: string;
   focus_keyword: string;
-  sample_coach_views?: string;
+  coach_views?: string;
 }
 
 export interface LearningLogEntry {

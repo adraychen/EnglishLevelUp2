@@ -17,26 +17,41 @@ async function generateTTS(text: string, lang: string = 'en'): Promise<string> {
   const encodedText = encodeURIComponent(truncatedText);
   const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=${lang}&client=tw-ob`;
 
-  try {
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-      },
-    });
+  const maxRetries = 3;
+  const retryDelay = 2000; // 2 seconds
 
-    if (!response.ok) {
-      console.error('TTS fetch failed:', response.status);
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        },
+      });
+
+      if (!response.ok) {
+        console.error(`TTS fetch failed (attempt ${attempt}/${maxRetries}):`, response.status);
+        if (attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, retryDelay));
+          continue;
+        }
+        return '';
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const base64 = Buffer.from(arrayBuffer).toString('base64');
+      return base64;
+    } catch (error) {
+      console.error(`TTS error (attempt ${attempt}/${maxRetries}):`, error);
+      if (attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, retryDelay));
+        continue;
+      }
       return '';
     }
-
-    const arrayBuffer = await response.arrayBuffer();
-    const base64 = Buffer.from(arrayBuffer).toString('base64');
-    return base64;
-  } catch (error) {
-    console.error('TTS error:', error);
-    return '';
   }
+
+  return '';
 }
 
 export async function POST(request: NextRequest) {
