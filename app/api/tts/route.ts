@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
 /**
- * Generate TTS audio for a single line using Google Translate TTS.
- * This is what gTTS uses under the hood.
+ * Generate TTS audio using Google Translate TTS.
+ * Tries multiple URL patterns as fallbacks.
  */
 async function generateTTS(text: string, lang: string = 'en'): Promise<string> {
   if (!text || text.length === 0) {
@@ -11,46 +11,36 @@ async function generateTTS(text: string, lang: string = 'en'): Promise<string> {
   }
 
   // Truncate to prevent issues with long text
-  const truncatedText = text.slice(0, 500);
-
-  // Google Translate TTS endpoint (same as what gTTS uses)
+  const truncatedText = text.slice(0, 200);
   const encodedText = encodeURIComponent(truncatedText);
-  const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=${lang}&client=tw-ob`;
 
-  const maxRetries = 3;
-  const retryDelay = 2000; // 2 seconds
+  // Try multiple URL patterns
+  const urls = [
+    `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=${lang}&client=tw-ob&ttsspeed=1`,
+    `https://translate.googleapis.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=${lang}&client=gtx&ttsspeed=1`,
+  ];
 
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+  for (const url of urls) {
     try {
       const response = await fetch(url, {
         headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Referer': 'https://translate.google.com/',
         },
       });
 
-      if (!response.ok) {
-        console.error(`TTS fetch failed (attempt ${attempt}/${maxRetries}):`, response.status);
-        if (attempt < maxRetries) {
-          await new Promise((r) => setTimeout(r, retryDelay));
-          continue;
+      if (response.ok) {
+        const arrayBuffer = await response.arrayBuffer();
+        if (arrayBuffer.byteLength > 0) {
+          return Buffer.from(arrayBuffer).toString('base64');
         }
-        return '';
       }
-
-      const arrayBuffer = await response.arrayBuffer();
-      const base64 = Buffer.from(arrayBuffer).toString('base64');
-      return base64;
-    } catch (error) {
-      console.error(`TTS error (attempt ${attempt}/${maxRetries}):`, error);
-      if (attempt < maxRetries) {
-        await new Promise((r) => setTimeout(r, retryDelay));
-        continue;
-      }
-      return '';
+    } catch {
+      // Try next URL
     }
   }
 
+  console.log('TTS: All endpoints failed, returning empty audio');
   return '';
 }
 

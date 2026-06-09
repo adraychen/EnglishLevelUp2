@@ -15,34 +15,42 @@ async function setSession(data: Record<string, unknown>) {
 }
 
 /**
- * Generate TTS audio (reuse logic from tts route)
+ * Generate TTS audio using Google Translate TTS.
  */
 async function generateTTS(text: string, lang: string = 'en'): Promise<string> {
   if (!text || text.length === 0) {
     return '';
   }
 
-  const truncatedText = text.slice(0, 500);
+  const truncatedText = text.slice(0, 200);
   const encodedText = encodeURIComponent(truncatedText);
-  const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=${lang}&client=tw-ob`;
 
-  try {
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-      },
-    });
+  const urls = [
+    `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=${lang}&client=tw-ob&ttsspeed=1`,
+    `https://translate.googleapis.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=${lang}&client=gtx&ttsspeed=1`,
+  ];
 
-    if (!response.ok) {
-      return '';
+  for (const url of urls) {
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Referer': 'https://translate.google.com/',
+        },
+      });
+
+      if (response.ok) {
+        const arrayBuffer = await response.arrayBuffer();
+        if (arrayBuffer.byteLength > 0) {
+          return Buffer.from(arrayBuffer).toString('base64');
+        }
+      }
+    } catch {
+      // Try next URL
     }
-
-    const arrayBuffer = await response.arrayBuffer();
-    return Buffer.from(arrayBuffer).toString('base64');
-  } catch {
-    return '';
   }
+
+  return '';
 }
 
 export async function POST(request: NextRequest) {
@@ -126,6 +134,8 @@ export async function POST(request: NextRequest) {
         }
       }
     }
+
+    console.log('DEBUG opening to return:', opening);
 
     // Reset session with new style
     const sessionData: Record<string, unknown> = {
