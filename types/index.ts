@@ -26,7 +26,6 @@ export interface SessionState {
   turns: PracticeTurn[];
   exchanges: number;
   topicId?: number;
-  taughtWords: string[];
 }
 
 // API response types
@@ -63,6 +62,7 @@ export interface Topic {
   name: string;
   level: string;
   opening: string | Array<{ opening: string }>;
+  intro?: string; // Topic introduction shown on first visit
   vocabulary_pool: string;
   focus_keyword: string;
   coach_views?: string | Array<{ coach_views: string }>;

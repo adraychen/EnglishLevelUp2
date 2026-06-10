@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { getNextTopic } from '@/lib/db';
+import { getNextTopic, hasCompletedTopic } from '@/lib/db';
 import { getServerSupabase } from '@/lib/supabase';
+import { getSession as getAuthSession } from '@/lib/auth';
 import { CoachStyle, CoachName, Topic } from '@/types';
 import { generateSpeech, VOICES } from '@/services/tts';
 
@@ -15,6 +16,33 @@ async function setSession(data: Record<string, unknown>) {
   });
 }
 
+/**
+ * Extract plain text from opening field (handles various formats)
+ */
+function parseOpeningText(rawOpening: unknown): string {
+  // If it's already an array (JSONB parsed by Supabase)
+  if (Array.isArray(rawOpening) && rawOpening[0]?.opening) {
+    return rawOpening[0].opening;
+  }
+  // If it's a JSON string
+  if (typeof rawOpening === 'string' && rawOpening.trim().startsWith('[')) {
+    try {
+      const parsed = JSON.parse(rawOpening);
+      if (Array.isArray(parsed) && parsed[0]?.opening) {
+        return parsed[0].opening;
+      }
+      return rawOpening;
+    } catch {
+      return rawOpening;
+    }
+  }
+  // Plain string
+  if (typeof rawOpening === 'string') {
+    return rawOpening;
+  }
+  return '';
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -22,15 +50,18 @@ export async function POST(request: NextRequest) {
     const requestedTopicId: number | undefined = body.topicId;
     const coachName: CoachName = style === 'casual' ? 'Dora' : 'Morgan';
 
+    // Get user info for topic completion tracking
+    const authSession = await getAuthSession();
+    const userName = authSession?.name || 'Ray';
+
     let opening = 'Say anything to start chatting!';
-    let topic: (Topic & { already_taught: string[] }) | null = null;
+    let topic: (Topic & { is_first_visit: boolean }) | null = null;
     let topicId: number | null = null;
-    let taughtWords: string[] = [];
 
     if (style === 'clear') {
       // Morgan — load topic (either requested or next in sequence)
       if (requestedTopicId) {
-        // Load specific topic by ID
+        // Load specific topic by ID (dashboard selection)
         const supabase = getServerSupabase();
         const { data: requestedTopic } = await supabase
           .from('eec_topics')
@@ -39,60 +70,36 @@ export async function POST(request: NextRequest) {
           .single();
 
         if (requestedTopic) {
-          topic = { ...requestedTopic, already_taught: [] };
+          // Check if user has completed this topic before
+          const completed = await hasCompletedTopic(requestedTopicId, userName);
+          topic = { ...requestedTopic, is_first_visit: !completed };
         }
       }
 
-      // Fall back to next topic if no specific topic requested or found
+      // Fall back to auto-advance if no specific topic requested or found
       if (!topic) {
-        topic = await getNextTopic();
+        topic = await getNextTopic(userName);
       }
 
       console.log('DEBUG topic:', JSON.stringify(topic, null, 2));
 
       if (topic) {
         topicId = topic.id;
-        taughtWords = topic.already_taught || [];
+        const topicName = topic.name || 'our topic';
+        const intro = topic.intro || '';
+        const openingText = parseOpeningText(topic.opening);
 
-        if (taughtWords.length > 0) {
-          // Continuing session
-          const topicNameLower = (topic.name || '').toLowerCase();
-          if (topicNameLower.includes('feeling')) {
-            opening = `Welcome back! Last time we talked about feelings like ${taughtWords.slice(0, 3).join(', ')}. Today let's keep going with a few more. To start — how are you feeling right now?`;
+        if (topic.is_first_visit) {
+          // First time with this topic — show intro + opening
+          if (intro) {
+            // Combine intro and opening naturally
+            opening = `${intro} ${openingText}`.trim();
           } else {
-            opening = `Welcome back! Let's continue with ${topic.name || 'our topic'}. How are you doing today?`;
+            opening = openingText || 'Say anything to start chatting!';
           }
         } else {
-          // First session for this topic
-          // Handle opening in various formats:
-          // - Plain string: "Hello..."
-          // - JSON array (parsed by Supabase): [{opening: "..."}]
-          // - JSON string: '[{"opening": "..."}]'
-          const rawOpening = topic.opening;
-          let openingText = '';
-
-          // If it's already an array (JSONB parsed by Supabase)
-          if (Array.isArray(rawOpening) && rawOpening[0]?.opening) {
-            openingText = rawOpening[0].opening;
-          }
-          // If it's a JSON string
-          else if (typeof rawOpening === 'string' && rawOpening.trim().startsWith('[')) {
-            try {
-              const parsed = JSON.parse(rawOpening);
-              if (Array.isArray(parsed) && parsed[0]?.opening) {
-                openingText = parsed[0].opening;
-              } else {
-                openingText = rawOpening;
-              }
-            } catch {
-              openingText = rawOpening;
-            }
-          }
-          // Plain string
-          else if (typeof rawOpening === 'string') {
-            openingText = rawOpening;
-          }
-          opening = openingText || 'Say anything to start chatting!';
+          // Revisiting — use welcome back style
+          opening = `Welcome back! Let's chat more about ${topicName}. How are you doing today?`;
         }
       }
     }
@@ -105,8 +112,8 @@ export async function POST(request: NextRequest) {
       history: [],
       turns: [],
       exchanges: 0,
-      taughtWords,
       lastQuestion: '',
+      userName,
     };
 
     if (topic) {

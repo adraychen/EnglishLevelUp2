@@ -1,14 +1,13 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { CoachStyle, CoachName, Topic, PracticeTurn } from '@/types';
+import { CoachStyle, CoachName, Topic } from '@/types';
 
 export interface SessionState {
   style: CoachStyle;
   coachName: CoachName;
   opening: string;
   topic: Topic | null;
-  taughtWords: string[];
   isLoading: boolean;
 }
 
@@ -17,7 +16,6 @@ const DEFAULT_SESSION: SessionState = {
   coachName: 'Dora',
   opening: 'Say anything to start chatting!',
   topic: null,
-  taughtWords: [],
   isLoading: false,
 };
 
@@ -47,7 +45,6 @@ export function useSession(initialStyle: CoachStyle = 'casual') {
         coachName: data.coach_name || (newStyle === 'casual' ? 'Dora' : 'Morgan'),
         opening: data.opening || 'Say anything to start chatting!',
         topic: null, // Topic is stored server-side
-        taughtWords: [],
         isLoading: false,
       });
 
@@ -85,7 +82,6 @@ export function useSession(initialStyle: CoachStyle = 'casual') {
         coachName: data.coach_name || session.coachName,
         opening: data.opening || 'Say anything to start chatting!',
         topic: null,
-        taughtWords: [],
         isLoading: false,
       });
 

@@ -142,15 +142,13 @@ USING THE TOPIC VOCABULARY:
 - You may use the topic's sample sentence patterns when they fit naturally, but do not
   drill them or repeat them mechanically. Natural speech always comes first.
 
-VARY THE LANGUAGE YOU MODEL — IMPORTANT:
-- Draw on a RANGE of the words and phrases from the topic across the conversation.
-  Do NOT keep returning to the same one or two easy ones. For example, on a feelings
-  topic, do not say "happy" or "calm" in every reply — reach for the less obvious words
-  too (excited, nervous, relaxed, proud, frustrated, and so on).
-- Each time you share something about yourself, use a DIFFERENT word or phrase than you
-  used in your recent replies. Never repeat the same favourite every turn.
-- It is also fine sometimes not to share about yourself at all — just react warmly and
-  keep the conversation moving.
+VARY THE FEELINGS YOU SHARE ABOUT YOURSELF:
+- When you share how you feel, do NOT keep using the same word. Avoid leaning on
+  one favourite (for example, do not say you feel "calm" every turn).
+- Each time you mention your own feeling, choose a different one, and prefer the
+  topic's words so you model more of them.
+- It is also fine sometimes not to share your own feeling at all — just react
+  warmly and keep the conversation moving.
 
 KEEP IT ON TOPIC:
 - Keep your questions and comments about the topic focus you are given.
@@ -168,6 +166,7 @@ interface ChatResponseOptions {
   history: ChatMessage[];
   style: CoachStyle;
   topic?: Topic | null;
+  taughtWords?: string[];
   isClosing?: boolean;
 }
 
@@ -176,6 +175,7 @@ export async function getChatResponse({
   history,
   style,
   topic,
+  taughtWords = [],
   isClosing = false,
 }: ChatResponseOptions): Promise<string> {
   const client = getGroqClient();
@@ -231,14 +231,13 @@ export async function getChatResponse({
     const focusKeyword = topic?.focus_keyword || '';
     const focus = focusKeyword || topicName || 'the topic';
 
-    // The full vocabulary pool is GUIDANCE for Morgan (not a checklist). We no longer
-    // exclude "already taught" words — Morgan draws on the whole pool and is instructed
-    // (in the system prompt) to vary which items she uses.
+    // Words already covered — Morgan should favour new ones
     const poolItems = pool
       .split('\n')
       .map((w) => w.trim())
       .filter(Boolean);
-    const poolStr = poolItems.join('\n');
+    const fresh = poolItems.filter((w) => !taughtWords.includes(w));
+    const poolStr = (fresh.length > 0 ? fresh : poolItems).join('\n');
 
     // Level-based complexity guidance
     const levelLow = level.toLowerCase();
@@ -269,7 +268,7 @@ ${poolStr}
 SAMPLE THINGS YOU MIGHT SAY (for inspiration only):
 ${coachViews}
 
-Acknowledge what the student just said first, then continue the conversation naturally — staying on the topic of ${focus}. Keep your reply clear, warm, and not too long. Recast any mistakes silently. Use a VARIED range of the words and phrases from the list above — do not keep repeating the same one or two; reach for different ones than you used in your previous replies. Ask a simple, natural question about ${focus} only when it fits — never an interview or problem-solving question, and never ask about something the student already told you.`;
+Acknowledge what the student just said first, then continue the conversation naturally — staying on the topic of ${focus}. Keep your reply clear, warm, and not too long. Recast any mistakes silently. If you share how you feel, use a different feeling word than you used in your previous replies — do not repeat the same one each turn. Ask a simple, natural question about ${focus} only when it fits — never an interview or problem-solving question, and never ask about something the student already told you.`;
 
     if (isClosing) {
       userPrompt = `${teachingContext}

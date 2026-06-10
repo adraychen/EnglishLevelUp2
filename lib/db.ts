@@ -1,24 +1,42 @@
 import { getServerSupabase } from './supabase';
-import { Topic, LearningLogEntry } from '@/types';
+import { Topic } from '@/types';
 
-const USER_NAME = 'Ray'; // Single user for now; becomes user_id with login
+const DEFAULT_USER_NAME = 'Ray'; // Fallback for unauthenticated users
 
 /**
- * Return only the single vocabulary words from a pool (excludes [..] patterns)
+ * Get the set of completed topic IDs for a user.
  */
-function singleWords(vocabularyPool: string): string[] {
-  return (vocabularyPool || '')
-    .split('\n')
-    .map((w) => w.trim())
-    .filter((w) => w && !w.includes('['));
+export async function getCompletedTopicIds(userName: string = DEFAULT_USER_NAME): Promise<Set<number>> {
+  let supabase;
+  try {
+    supabase = getServerSupabase();
+  } catch (error) {
+    console.error('Supabase not configured:', error);
+    return new Set();
+  }
+
+  const { data: logEntries, error: logError } = await supabase
+    .from('eec_learning_log')
+    .select('topic_id')
+    .eq('user_name', userName)
+    .eq('word_taught', '__session_complete__');
+
+  if (logError) {
+    console.error('Error fetching completed topics:', logError);
+    return new Set();
+  }
+
+  return new Set((logEntries || []).map((r) => r.topic_id));
 }
 
 /**
- * Return the next topic for the user plus the words already taught for it.
- * Advances through topics in order: a topic is 'complete' when all its single
- * vocabulary words have been taught.
+ * Return the next uncompleted topic for the user.
+ * Topics are ordered by topic_order. If all are completed, returns the first topic.
+ * Also returns whether this is a first visit (for intro display).
  */
-export async function getNextTopic(): Promise<(Topic & { already_taught: string[] }) | null> {
+export async function getNextTopic(
+  userName: string = DEFAULT_USER_NAME
+): Promise<(Topic & { is_first_visit: boolean }) | null> {
   let supabase;
   try {
     supabase = getServerSupabase();
@@ -38,52 +56,45 @@ export async function getNextTopic(): Promise<(Topic & { already_taught: string[
     return null;
   }
 
+  // Get completed topic IDs for user
+  const completedIds = await getCompletedTopicIds(userName);
+
+  // Find first uncompleted topic
   for (const topic of topics) {
-    const words = singleWords(topic.vocabulary_pool);
-
-    // Which of this topic's words has the user already been taught?
-    const { data: logEntries, error: logError } = await supabase
-      .from('eec_learning_log')
-      .select('word_taught')
-      .eq('user_name', USER_NAME)
-      .eq('topic_id', topic.id);
-
-    if (logError) {
-      console.error('Error fetching learning log:', logError);
-      continue;
-    }
-
-    const taught = new Set((logEntries || []).map((r) => r.word_taught));
-    const taughtSingle = words.filter((w) => taught.has(w));
-
-    // If not all single words are taught, this is the active topic
-    if (taughtSingle.length < words.length) {
+    if (!completedIds.has(topic.id)) {
       return {
         ...topic,
-        already_taught: taughtSingle,
+        is_first_visit: true,
       };
     }
   }
 
-  // All topics fully taught — cycle back to the first, fresh
+  // All topics completed — cycle back to the first
   return {
     ...topics[0],
-    already_taught: [],
+    is_first_visit: false,
   };
 }
 
 /**
- * Write taught words to eec_learning_log for the user
+ * Check if a user has completed a specific topic before.
  */
-export async function logLearning(
+export async function hasCompletedTopic(
   topicId: number,
-  taughtWords: string[],
-  errorsOccurred: boolean = false
-): Promise<void> {
-  if (!taughtWords || taughtWords.length === 0) {
-    return;
-  }
+  userName: string = DEFAULT_USER_NAME
+): Promise<boolean> {
+  const completedIds = await getCompletedTopicIds(userName);
+  return completedIds.has(topicId);
+}
 
+/**
+ * Log topic completion for a user.
+ * Inserts one row with '__session_complete__' marker.
+ */
+export async function logTopicCompletion(
+  topicId: number,
+  userName: string = DEFAULT_USER_NAME
+): Promise<void> {
   let supabase;
   try {
     supabase = getServerSupabase();
@@ -92,16 +103,14 @@ export async function logLearning(
     return;
   }
 
-  const entries: Omit<LearningLogEntry, 'id' | 'created_at'>[] = taughtWords.map((word) => ({
-    user_name: USER_NAME,
+  const { error } = await supabase.from('eec_learning_log').insert({
+    user_name: userName,
     topic_id: topicId,
-    word_taught: word,
-    had_error: errorsOccurred,
-  }));
-
-  const { error } = await supabase.from('eec_learning_log').insert(entries);
+    word_taught: '__session_complete__',
+    had_error: false,
+  });
 
   if (error) {
-    console.error('Error logging learning:', error);
+    console.error('Error logging topic completion:', error);
   }
 }

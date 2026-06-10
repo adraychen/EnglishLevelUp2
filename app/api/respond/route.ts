@@ -42,7 +42,6 @@ export async function POST(request: NextRequest) {
     const session = (await getSession()) || {};
     const style: CoachStyle = session.style || 'casual';
     const history: ChatMessage[] = session.history || [];
-    const taughtWords: string[] = session.taughtWords || [];
     const topic: Topic | null = session.topic || null;
     const turns: PracticeTurn[] = session.turns || [];
     let exchanges: number = session.exchanges || 0;
@@ -61,7 +60,6 @@ export async function POST(request: NextRequest) {
         history,
         style,
         topic,
-        taughtWords,
         isClosing,
       });
 

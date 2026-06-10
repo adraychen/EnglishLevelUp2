@@ -200,7 +200,7 @@ export default async function DashboardPage() {
           <h2 className="text-lg font-semibold text-slate-800 mb-4">
             Choose a Topic
           </h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             {topics.map((topic) => (
               <Link
                 key={topic.id}
@@ -208,7 +208,10 @@ export default async function DashboardPage() {
                 className="block p-4 border border-slate-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition"
               >
                 <div className="font-medium text-slate-800">{topic.name}</div>
-                <div className="text-sm text-slate-500">{topic.level}</div>
+                <div className="text-xs text-slate-400 mb-1">{topic.level}</div>
+                {topic.intro && (
+                  <div className="text-sm text-slate-600">{topic.intro}</div>
+                )}
               </Link>
             ))}
           </div>

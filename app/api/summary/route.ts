@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { buildReview, wordsUsedInText } from '@/services/review';
-import { analyzeSession, analyzeProgress, scoreToLabel } from '@/services/analysis';
-import { logLearning } from '@/lib/db';
+import { buildReview } from '@/services/review';
+import { analyzeSession, analyzeProgress } from '@/services/analysis';
+import { logTopicCompletion } from '@/lib/db';
 import { getSession as getAuthSession } from '@/lib/auth';
 import { getServerSupabase } from '@/lib/supabase';
-import { PracticeTurn, Topic, ChatMessage } from '@/types';
+import { PracticeTurn, Topic } from '@/types';
 
 async function getSession() {
   const cookieStore = await cookies();
@@ -27,31 +27,21 @@ export async function POST() {
     const userId = authSession?.userId || null;
 
     const style: string = session.style || 'casual';
-    const history: ChatMessage[] = session.history || [];
     const turns: PracticeTurn[] = session.turns || [];
     const topic: Topic | null = session.topic || null;
     const topicId: number | null = session.topicId || null;
     const topicName = topic?.name || '';
-    const pool = topic?.vocabulary_pool || '';
+    const userName: string = session.userName || 'Ray';
 
     // Build the review markdown
     const summary = buildReview(turns, style, topicName);
 
-    // Log vocabulary words Morgan used (for topic progression)
-    if (style === 'clear' && pool && topicId) {
-      const morganText = history
-        .filter((m) => m.role === 'coach')
-        .map((m) => m.content)
-        .join(' ');
-
-      const taughtWords = wordsUsedInText(morganText, pool);
-
-      if (taughtWords.length > 0) {
-        try {
-          await logLearning(topicId, taughtWords, false);
-        } catch (error) {
-          console.error('Learning log error:', error);
-        }
+    // Log topic completion (for topic progression)
+    if (style === 'clear' && topicId) {
+      try {
+        await logTopicCompletion(topicId, userName);
+      } catch (error) {
+        console.error('Topic completion log error:', error);
       }
     }
 
