@@ -97,6 +97,29 @@ export async function POST(request: NextRequest) {
     console.log('DEBUG opening to return:', opening);
 
     // Reset session with new style (server-side, no size limit)
+    // Parse coach_views if it's in JSONB array format
+    let coachViewsStr = '';
+    if (topic?.coach_views) {
+      if (Array.isArray(topic.coach_views) && topic.coach_views[0]?.coach_views) {
+        coachViewsStr = topic.coach_views[0].coach_views;
+      } else if (typeof topic.coach_views === 'string') {
+        if (topic.coach_views.trim().startsWith('[')) {
+          try {
+            const parsed = JSON.parse(topic.coach_views);
+            if (Array.isArray(parsed) && parsed[0]?.coach_views) {
+              coachViewsStr = parsed[0].coach_views;
+            } else {
+              coachViewsStr = topic.coach_views;
+            }
+          } catch {
+            coachViewsStr = topic.coach_views;
+          }
+        } else {
+          coachViewsStr = topic.coach_views;
+        }
+      }
+    }
+
     await setChatState({
       style,
       history: [],
@@ -110,7 +133,7 @@ export async function POST(request: NextRequest) {
             name: topic.name,
             level: topic.level,
             vocabulary_pool: topic.vocabulary_pool,
-            coach_views: typeof topic.coach_views === 'string' ? topic.coach_views : '',
+            coach_views: coachViewsStr,
             focus_keyword: topic.focus_keyword,
           }
         : undefined,
