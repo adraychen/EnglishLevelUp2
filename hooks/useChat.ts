@@ -12,7 +12,7 @@ export interface UseChatReturn {
   messages: ChatMessage[];
   isLoading: boolean;
   sessionComplete: boolean;
-  sendMessage: (text: string) => Promise<{ reply: string } | null>;
+  sendMessage: (text: string) => Promise<{ reply: string; audio: string } | null>;
   getSummary: () => Promise<{ summary: string; practiceTurns: PracticeTurn[] } | null>;
   clearMessages: () => void;
   addCoachMessage: (content: string) => void;
@@ -37,7 +37,7 @@ export function useChat({ coachName, initialMessage }: UseChatOptions): UseChatR
   const [sessionComplete, setSessionComplete] = useState(false);
 
   const sendMessage = useCallback(
-    async (text: string): Promise<{ reply: string } | null> => {
+    async (text: string): Promise<{ reply: string; audio: string } | null> => {
       const trimmed = text.trim();
       if (!trimmed || isLoading) return null;
 
@@ -76,7 +76,21 @@ export function useChat({ coachName, initialMessage }: UseChatOptions): UseChatR
           setSessionComplete(true);
         }
 
-        return { reply: data.reply };
+        // Fetch TTS audio separately
+        let audio = '';
+        try {
+          const ttsRes = await fetch('/api/tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: data.reply }),
+          });
+          const ttsData = await ttsRes.json();
+          audio = ttsData.audio || '';
+        } catch {
+          // TTS failure is non-blocking
+        }
+
+        return { reply: data.reply, audio };
       } catch (error) {
         console.error('Send message error:', error);
         // Remove the student message on error

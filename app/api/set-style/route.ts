@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { getNextTopic } from '@/lib/db';
 import { getServerSupabase } from '@/lib/supabase';
 import { CoachStyle, CoachName, Topic } from '@/types';
+import { generateSpeech, VOICES } from '@/services/tts';
 
 async function setSession(data: Record<string, unknown>) {
   const cookieStore = await cookies();
@@ -12,45 +13,6 @@ async function setSession(data: Record<string, unknown>) {
     sameSite: 'lax',
     maxAge: 60 * 60 * 24, // 24 hours
   });
-}
-
-/**
- * Generate TTS audio using Google Translate TTS.
- */
-async function generateTTS(text: string, lang: string = 'en'): Promise<string> {
-  if (!text || text.length === 0) {
-    return '';
-  }
-
-  const truncatedText = text.slice(0, 500);
-  const encodedText = encodeURIComponent(truncatedText);
-
-  const urls = [
-    `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=${lang}&client=tw-ob&ttsspeed=1`,
-    `https://translate.googleapis.com/translate_tts?ie=UTF-8&q=${encodedText}&tl=${lang}&client=gtx&ttsspeed=1`,
-  ];
-
-  for (const url of urls) {
-    try {
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Referer': 'https://translate.google.com/',
-        },
-      });
-
-      if (response.ok) {
-        const arrayBuffer = await response.arrayBuffer();
-        if (arrayBuffer.byteLength > 0) {
-          return Buffer.from(arrayBuffer).toString('base64');
-        }
-      }
-    } catch {
-      // Try next URL
-    }
-  }
-
-  return '';
 }
 
 export async function POST(request: NextRequest) {
@@ -154,11 +116,12 @@ export async function POST(request: NextRequest) {
 
     await setSession(sessionData);
 
-    // Generate opening audio for Morgan
-    let openingAudio = '';
-    if (style === 'clear') {
-      openingAudio = await generateTTS(opening, 'en');
-    }
+    // Generate opening audio
+    const voiceConfig = style === 'casual' ? VOICES.dora : VOICES.morgan;
+    const openingAudio = await generateSpeech({
+      text: opening,
+      ...voiceConfig,
+    });
 
     return NextResponse.json({
       style,

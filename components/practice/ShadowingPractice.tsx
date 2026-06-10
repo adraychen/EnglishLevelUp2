@@ -28,7 +28,7 @@ export const ShadowingPractice: React.FC<ShadowingPracticeProps> = ({
   const [completedIndices, setCompletedIndices] = useState<Set<number>>(new Set());
 
   const { isRecording, startRecording, stopRecording, cancelRecording } = useAudioRecorder();
-  const { isPlaying, speak, stop: stopAudio } = useAudioPlayer();
+  const { isPlaying, playMp3, stop: stopAudio } = useAudioPlayer();
 
   // Flatten turns into a sequence of practice steps
   const steps = useMemo<PracticeStep[]>(() => {
@@ -62,15 +62,33 @@ export const ShadowingPractice: React.FC<ShadowingPracticeProps> = ({
   const isLastStep = currentIndex === steps.length - 1;
   const allCompleted = completedIndices.size === steps.length;
 
-  // Handle playing Morgan's line using browser TTS
+  // Fetch TTS for a line
+  const fetchTTS = useCallback(async (text: string): Promise<string> => {
+    try {
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      const data = await res.json();
+      return data.audio || '';
+    } catch {
+      return '';
+    }
+  }, []);
+
+  // Handle playing Morgan's line
   const handlePlayMorgan = useCallback(async () => {
     if (!currentStep || currentStep.type !== 'morgan' || isPlaying) return;
 
-    await speak(currentStep.text);
+    const audio = await fetchTTS(currentStep.text);
+    if (audio) {
+      await playMp3(audio);
+    }
 
     // Mark as completed after playing
     setCompletedIndices((prev) => new Set(prev).add(currentIndex));
-  }, [currentStep, currentIndex, isPlaying, speak]);
+  }, [currentStep, currentIndex, isPlaying, fetchTTS, playMp3]);
 
   // Handle recording student's line
   const handleStartRecording = useCallback(async () => {

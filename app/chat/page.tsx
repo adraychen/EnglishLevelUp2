@@ -20,18 +20,20 @@ function ChatContent() {
   });
 
   const { isRecording, isTranscribing, startRecording, stopRecording } = useAudioRecorder();
-  const { speak } = useAudioPlayer();
+  const { playMp3 } = useAudioPlayer();
 
   const [showReview, setShowReview] = useState(false);
   const [reviewContent, setReviewContent] = useState('');
   const [practiceTurns, setPracticeTurns] = useState<PracticeTurn[]>([]);
   const [isLoadingReview, setIsLoadingReview] = useState(false);
   const [initialized, setInitialized] = useState(false);
+  const [pendingOpeningAudio, setPendingOpeningAudio] = useState<string>('');
 
   // Initialize session on mount
   useEffect(() => {
     const initSession = async () => {
-      await switchStyle(initialStyle, initialTopicId);
+      const audio = await switchStyle(initialStyle, initialTopicId);
+      setPendingOpeningAudio(audio || '');
       setInitialized(true);
     };
     initSession();
@@ -42,9 +44,12 @@ function ChatContent() {
   useEffect(() => {
     if (initialized && session.opening && messages.length === 0 && !session.isLoading) {
       addCoachMessage(session.opening);
-      speak(session.opening);
+      if (pendingOpeningAudio) {
+        playMp3(pendingOpeningAudio);
+        setPendingOpeningAudio('');
+      }
     }
-  }, [initialized, session.opening, session.isLoading, messages.length, addCoachMessage, speak]);
+  }, [initialized, session.opening, session.isLoading, messages.length, addCoachMessage, pendingOpeningAudio, playMp3]);
 
   // Handle session complete
   useEffect(() => {
@@ -60,11 +65,11 @@ function ChatContent() {
   const handleSend = useCallback(
     async (text: string) => {
       const result = await sendMessage(text);
-      if (result?.reply) {
-        speak(result.reply);
+      if (result?.audio) {
+        playMp3(result.audio);
       }
     },
-    [sendMessage, speak]
+    [sendMessage, playMp3]
   );
 
   const handleStartRecording = useCallback(async () => {
@@ -85,8 +90,9 @@ function ChatContent() {
   const handleSwitchStyle = useCallback(
     async (style: CoachStyle) => {
       clearMessages();
-      await switchStyle(style);
-      // Opening will be added and spoken by the useEffect watching session.opening
+      const audio = await switchStyle(style);
+      setPendingOpeningAudio(audio || '');
+      // Opening will be added by the useEffect watching session.opening
     },
     [switchStyle, clearMessages]
   );
@@ -114,8 +120,9 @@ function ChatContent() {
     setReviewContent('');
     setPracticeTurns([]);
     clearMessages();
-    await resetSession();
-    // Opening will be added and spoken by the useEffect watching session.opening
+    const audio = await resetSession();
+    setPendingOpeningAudio(audio || '');
+    // Opening will be added by the useEffect watching session.opening
   }, [resetSession, clearMessages]);
 
   const handleStartPractice = useCallback(() => {
