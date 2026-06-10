@@ -1,20 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { getNextTopic, hasCompletedTopic } from '@/lib/db';
 import { getServerSupabase } from '@/lib/supabase';
 import { getSession as getAuthSession } from '@/lib/auth';
+import { setChatState } from '@/lib/chatSession';
 import { CoachStyle, CoachName, Topic } from '@/types';
 import { generateSpeech, VOICES } from '@/services/tts';
-
-async function setSession(data: Record<string, unknown>) {
-  const cookieStore = await cookies();
-  cookieStore.set('session', JSON.stringify(data), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: 60 * 60 * 24, // 24 hours
-  });
-}
 
 /**
  * Extract plain text from opening field (handles various formats)
@@ -106,31 +96,26 @@ export async function POST(request: NextRequest) {
 
     console.log('DEBUG opening to return:', opening);
 
-    // Reset session with new style
-    // Store only essential topic fields to avoid cookie size limit (~4KB)
-    const sessionData: Record<string, unknown> = {
+    // Reset session with new style (server-side, no size limit)
+    await setChatState({
       style,
       history: [],
       turns: [],
       exchanges: 0,
       lastQuestion: '',
       userName,
-    };
-
-    if (topic) {
-      // Slim topic: only fields needed during chat
-      sessionData.topic = {
-        id: topic.id,
-        name: topic.name,
-        level: topic.level,
-        vocabulary_pool: topic.vocabulary_pool,
-        coach_views: topic.coach_views,
-        focus_keyword: topic.focus_keyword,
-      };
-      sessionData.topicId = topicId;
-    }
-
-    await setSession(sessionData);
+      topic: topic
+        ? {
+            id: topic.id,
+            name: topic.name,
+            level: topic.level,
+            vocabulary_pool: topic.vocabulary_pool,
+            coach_views: typeof topic.coach_views === 'string' ? topic.coach_views : '',
+            focus_keyword: topic.focus_keyword,
+          }
+        : undefined,
+      topicId: topicId || undefined,
+    });
 
     // Generate opening audio
     const voiceConfig = style === 'casual' ? VOICES.dora : VOICES.morgan;

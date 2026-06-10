@@ -1,34 +1,23 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { buildReview } from '@/services/review';
 import { analyzeSession, analyzeProgress } from '@/services/analysis';
 import { logTopicCompletion } from '@/lib/db';
+import { getChatState } from '@/lib/chatSession';
 import { getSession as getAuthSession } from '@/lib/auth';
 import { getServerSupabase } from '@/lib/supabase';
 import { PracticeTurn, Topic } from '@/types';
 
-async function getSession() {
-  const cookieStore = await cookies();
-  const sessionCookie = cookieStore.get('session');
-  if (sessionCookie) {
-    try {
-      return JSON.parse(sessionCookie.value);
-    } catch {
-      return null;
-    }
-  }
-  return null;
-}
 
 export async function POST() {
   try {
-    const session = (await getSession()) || {};
+    const session = await getChatState();
     const authSession = await getAuthSession();
     const userId = authSession?.userId || null;
 
     const style: string = session.style || 'casual';
     const turns: PracticeTurn[] = session.turns || [];
-    const topic: Topic | null = session.topic || null;
+    // Topic is stored with only fields needed for chat (slim version)
+    const topic = session.topic as Topic | null;
     const topicId: number | null = session.topicId || null;
     const topicName = topic?.name || '';
     const userName: string = session.userName || 'Ray';

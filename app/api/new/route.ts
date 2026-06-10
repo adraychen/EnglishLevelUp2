@@ -1,40 +1,21 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getChatState, setChatState } from '@/lib/chatSession';
 
 export async function POST() {
   try {
-    const cookieStore = await cookies();
-
     // Get current style before clearing
-    let currentStyle = 'casual';
-    const sessionCookie = cookieStore.get('session');
-    if (sessionCookie) {
-      try {
-        const session = JSON.parse(sessionCookie.value);
-        currentStyle = session.style || 'casual';
-      } catch {
-        // Use default
-      }
-    }
+    const currentSession = await getChatState();
+    const currentStyle = currentSession.style || 'casual';
 
     // Clear session but preserve style preference
-    cookieStore.set(
-      'session',
-      JSON.stringify({
-        style: currentStyle,
-        history: [],
-        turns: [],
-        exchanges: 0,
-        taughtWords: [],
-        lastQuestion: '',
-      }),
-      {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24,
-      }
-    );
+    await setChatState({
+      style: currentStyle,
+      history: [],
+      turns: [],
+      exchanges: 0,
+      lastQuestion: '',
+      userName: currentSession.userName || 'Ray',
+    });
 
     return NextResponse.json({ redirect: '/' });
   } catch (error) {

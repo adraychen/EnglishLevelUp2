@@ -1,35 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { getChatResponse } from '@/services/coach';
 import { correctSentence } from '@/services/correction';
 import { generateSpeech, VOICES } from '@/services/tts';
+import { getChatState, setChatState } from '@/lib/chatSession';
 import { ChatMessage, PracticeTurn, Topic, CoachStyle } from '@/types';
 
 const MAX_EXCHANGES = 6;
-
-// Simple session storage using cookies (JSON encoded)
-async function getSession() {
-  const cookieStore = await cookies();
-  const sessionCookie = cookieStore.get('session');
-  if (sessionCookie) {
-    try {
-      return JSON.parse(sessionCookie.value);
-    } catch {
-      return null;
-    }
-  }
-  return null;
-}
-
-async function setSession(data: Record<string, unknown>) {
-  const cookieStore = await cookies();
-  cookieStore.set('session', JSON.stringify(data), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: 60 * 60 * 24, // 24 hours
-  });
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -40,16 +16,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No text provided' }, { status: 400 });
     }
 
-    const session = (await getSession()) || {};
-    const style: CoachStyle = session.style || 'casual';
-    // History is stored compressed (no id) to save cookie space
-    const storedHistory = session.history || [];
-    const history: ChatMessage[] = storedHistory.map((m: { role: string; content: string }) => ({
+    // Get session from database
+    const session = await getChatState();
+    const style: CoachStyle = (session.style as CoachStyle) || 'casual';
+    const history: ChatMessage[] = (session.history || []).map((m) => ({
       id: crypto.randomUUID(),
       role: m.role as 'coach' | 'student',
       content: m.content,
     }));
-    const topic: Topic | null = session.topic || null;
+    // Topic is stored with only fields needed for chat (slim version)
+    const topic = session.topic as Topic | null;
     const turns: PracticeTurn[] = session.turns || [];
     let exchanges: number = session.exchanges || 0;
     const lastQuestion: string = session.lastQuestion || '';
@@ -61,6 +37,8 @@ export async function POST(request: NextRequest) {
       // Morgan — topic-led practice
       exchanges += 1;
       const isClosing = exchanges >= MAX_EXCHANGES;
+
+      console.log('DEBUG exchanges:', exchanges, 'MAX:', MAX_EXCHANGES, 'isClosing:', isClosing);
 
       reply = await getChatResponse({
         studentText,
@@ -95,30 +73,20 @@ export async function POST(request: NextRequest) {
     history.push({ id: crypto.randomUUID(), role: 'student', content: studentText });
     history.push({ id: crypto.randomUUID(), role: 'coach', content: reply });
 
-    // Compress history to avoid cookie size limit (~4KB)
-    // Only store role and content (no id), last 12 messages
-    const compressedHistory = history.slice(-12).map((m) => ({
+    // Keep last 12 messages for context
+    const trimmedHistory = history.slice(-12).map((m) => ({
       role: m.role,
       content: m.content,
     }));
 
-    // Save session
-    const newSession = {
+    // Save session to database
+    await setChatState({
       ...session,
-      history: compressedHistory,
+      history: trimmedHistory,
       turns,
       exchanges,
       lastQuestion: reply,
-    };
-
-    const sessionSize = JSON.stringify(newSession).length;
-    console.log('DEBUG session size:', sessionSize, 'bytes, exchanges:', exchanges);
-
-    if (sessionSize > 3500) {
-      console.warn('WARNING: Session size approaching cookie limit (4KB), size:', sessionSize);
-    }
-
-    await setSession(newSession);
+    });
 
     console.log('DEBUG respond exchanges:', exchanges, 'sessionComplete:', sessionComplete);
 

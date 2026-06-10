@@ -77,12 +77,12 @@ export const VOICES = {
   morgan: {
     languageCode: 'en-US',
     voiceName: 'en-US-Journey-F',
-    speakingRate: 0.85,
+    speakingRate: 0.75,
   },
   // Dora - casual, friendly female voice
   dora: {
     languageCode: 'en-US',
     voiceName: 'en-US-Studio-O',
-    speakingRate: 0.9,
+    speakingRate: 0.85,
   },
 };
