@@ -76,21 +76,8 @@ export function useChat({ coachName, initialMessage }: UseChatOptions): UseChatR
           setSessionComplete(true);
         }
 
-        // Fetch TTS audio separately
-        let audio = '';
-        try {
-          const ttsRes = await fetch('/api/tts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: data.reply }),
-          });
-          const ttsData = await ttsRes.json();
-          audio = ttsData.audio || '';
-        } catch {
-          // TTS failure is non-blocking
-        }
-
-        return { reply: data.reply, audio };
+        // Audio is now included in the response (generated server-side)
+        return { reply: data.reply, audio: data.reply_audio || '' };
       } catch (error) {
         console.error('Send message error:', error);
         // Remove the student message on error

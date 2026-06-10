@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getChatResponse } from '@/services/coach';
 import { correctSentence } from '@/services/correction';
+import { generateSpeech, VOICES } from '@/services/tts';
 import { ChatMessage, PracticeTurn, Topic, CoachStyle } from '@/types';
 
 const MAX_EXCHANGES = 6;
@@ -41,7 +42,13 @@ export async function POST(request: NextRequest) {
 
     const session = (await getSession()) || {};
     const style: CoachStyle = session.style || 'casual';
-    const history: ChatMessage[] = session.history || [];
+    // History is stored compressed (no id) to save cookie space
+    const storedHistory = session.history || [];
+    const history: ChatMessage[] = storedHistory.map((m: { role: string; content: string }) => ({
+      id: crypto.randomUUID(),
+      role: m.role as 'coach' | 'student',
+      content: m.content,
+    }));
     const topic: Topic | null = session.topic || null;
     const turns: PracticeTurn[] = session.turns || [];
     let exchanges: number = session.exchanges || 0;
@@ -88,21 +95,43 @@ export async function POST(request: NextRequest) {
     history.push({ id: crypto.randomUUID(), role: 'student', content: studentText });
     history.push({ id: crypto.randomUUID(), role: 'coach', content: reply });
 
+    // Compress history to avoid cookie size limit (~4KB)
+    // Only store role and content (no id), last 12 messages
+    const compressedHistory = history.slice(-12).map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+
     // Save session
-    await setSession({
+    const newSession = {
       ...session,
-      history,
+      history: compressedHistory,
       turns,
       exchanges,
       lastQuestion: reply,
-    });
+    };
 
-    console.log('DEBUG respond reply length:', reply.length);
-    console.log('DEBUG respond reply:', reply);
+    const sessionSize = JSON.stringify(newSession).length;
+    console.log('DEBUG session size:', sessionSize, 'bytes, exchanges:', exchanges);
+
+    if (sessionSize > 3500) {
+      console.warn('WARNING: Session size approaching cookie limit (4KB), size:', sessionSize);
+    }
+
+    await setSession(newSession);
+
+    console.log('DEBUG respond exchanges:', exchanges, 'sessionComplete:', sessionComplete);
+
+    // Generate TTS audio in the same request (like Flask did)
+    const voiceConfig = style === 'casual' ? VOICES.dora : VOICES.morgan;
+    const replyAudio = await generateSpeech({
+      text: reply,
+      ...voiceConfig,
+    });
 
     return NextResponse.json({
       reply,
-      reply_audio: '', // TTS will be called separately by the client
+      reply_audio: replyAudio,
       session_complete: sessionComplete,
     });
   } catch (error) {

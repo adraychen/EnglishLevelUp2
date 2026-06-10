@@ -107,6 +107,7 @@ export async function POST(request: NextRequest) {
     console.log('DEBUG opening to return:', opening);
 
     // Reset session with new style
+    // Store only essential topic fields to avoid cookie size limit (~4KB)
     const sessionData: Record<string, unknown> = {
       style,
       history: [],
@@ -117,7 +118,15 @@ export async function POST(request: NextRequest) {
     };
 
     if (topic) {
-      sessionData.topic = topic;
+      // Slim topic: only fields needed during chat
+      sessionData.topic = {
+        id: topic.id,
+        name: topic.name,
+        level: topic.level,
+        vocabulary_pool: topic.vocabulary_pool,
+        coach_views: topic.coach_views,
+        focus_keyword: topic.focus_keyword,
+      };
       sessionData.topicId = topicId;
     }
 

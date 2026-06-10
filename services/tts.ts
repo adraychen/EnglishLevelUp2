@@ -73,16 +73,16 @@ export async function generateSpeech({
 
 // Voice presets for different coaches
 export const VOICES = {
-  // Morgan - clear, professional female voice
+  // Morgan - clear, professional female voice (slower for learners)
   morgan: {
     languageCode: 'en-US',
     voiceName: 'en-US-Journey-F',
-    speakingRate: 0.95,
+    speakingRate: 0.85,
   },
-  // Dora - casual, friendly female voice (slightly different)
+  // Dora - casual, friendly female voice
   dora: {
     languageCode: 'en-US',
-    voiceName: 'en-US-Studio-O', // Different voice for variety
-    speakingRate: 1.0,
+    voiceName: 'en-US-Studio-O',
+    speakingRate: 0.9,
   },
 };
