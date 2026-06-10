@@ -100,12 +100,13 @@ export const ShadowingPractice: React.FC<ShadowingPracticeProps> = ({
       if (result) {
         const targetText = line === 'morgan' ? currentTurn.morgan : currentTurn.corrected;
         const score = scorePronunciation(targetText, result);
-        const lineScore = { transcript: result, result: score };
-
-        if (line === 'morgan') {
-          setMorganScore(lineScore);
-        } else {
-          setStudentScore(lineScore);
+        if (score) {
+          const lineScore = { transcript: result, result: score };
+          if (line === 'morgan') {
+            setMorganScore(lineScore);
+          } else {
+            setStudentScore(lineScore);
+          }
         }
       }
       setActiveLine(null);
