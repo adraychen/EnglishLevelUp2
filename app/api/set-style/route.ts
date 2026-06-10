@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
       history: [],
       turns: [],
       exchanges: 0,
-      lastQuestion: '',
+      lastQuestion: opening,
       userName,
       topic: topic
         ? {

@@ -64,11 +64,20 @@ Dora sessions show a simpler error review.
 
 ### The practice round (shadowing)
 From the review, the student can start a **practice round** that replays the
-finished conversation line by line: Morgan's lines play as audio (more exposure
-to natural phrasing), and the student practises saying their own lines using
-the corrected version. This gives a second pass of exposure plus a chance to
-rehearse the better sentences out loud. The practice data lives only in the
-browser session — it is never saved to the database.
+finished conversation line by line:
+
+1. **Auto-play**: Morgan's line plays automatically via TTS
+2. **Listen**: Student can replay the audio using the Listen button
+3. **Record**: Student taps the microphone to speak the target sentence
+4. **Transcribe & Score**: Speech is transcribed via Whisper and scored for accuracy
+5. **Word highlighting**: Matched words appear green; missed words appear red with strikethrough
+6. **Try Again / Next**: Student can retry for a better score or proceed to the next line
+
+Accuracy scoring uses word matching with normalization (handles contractions,
+numbers, punctuation). Scores ≥90% show "Excellent!", ≥70% show "Almost there",
+below 70% show "Try again". A completion modal appears after the final step.
+
+The practice data lives only in the browser session — it is never saved to the database.
 
 ---
 
@@ -128,6 +137,7 @@ vocabulary, phrasing, and sentence structure with scores and personalized feedba
 | `progress_reports` | Aggregated reports generated every 5 sessions with overall progress assessment |
 | `eec_topics` | Topics for Morgan: order, name, level, intro, opening line, vocabulary pool, focus keyword, and sample coach views |
 | `eec_learning_log` | Records topic completion per user for progression tracking |
+| `chat_state` | Server-side session storage for active conversations (avoids cookie size limits) |
 
 ---
 
@@ -169,9 +179,10 @@ english-level-up/
 │   ├── supabase.ts                 # Supabase client
 │   ├── groq.ts                     # Groq API client
 │   ├── db.ts                       # Topic progression helpers
-│   └── auth.ts                     # Authentication helpers
+│   ├── auth.ts                     # Authentication helpers
+│   └── chatSession.ts              # Server-side session management
 ├── types/                          # TypeScript types
-├── utils/                          # audioUtils.ts
+├── utils/                          # audioUtils.ts, scoringUtils.ts
 ├── middleware.ts                   # Route protection
 └── .env.local.example              # Example environment variables
 ```
@@ -280,6 +291,13 @@ CREATE TABLE eec_learning_log (
   word_taught TEXT,
   had_error BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Server-side session state (avoids cookie size limits)
+CREATE TABLE chat_state (
+  user_id TEXT PRIMARY KEY,
+  state JSONB NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 

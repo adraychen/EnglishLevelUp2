@@ -1,17 +1,11 @@
 'use client';
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { ArrowLeft, Volume2, CheckCircle, RefreshCw, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Volume2, CheckCircle, RefreshCw, ChevronRight, Mic, Square } from 'lucide-react';
 import { PracticeTurn } from '@/types';
-import { ProgressBar, RecordButton } from '@/components/ui';
+import { ProgressBar } from '@/components/ui';
 import { useAudioRecorder, useAudioPlayer } from '@/hooks';
 import { scorePronunciation, ScoreResult } from '@/utils/scoringUtils';
-
-interface PracticeStep {
-  type: 'morgan' | 'student';
-  text: string;
-  originalText?: string; // For student lines, the original (uncorrected) text
-}
 
 interface ShadowingPracticeProps {
   turns: PracticeTurn[];
@@ -19,52 +13,49 @@ interface ShadowingPracticeProps {
   onExit: () => void;
 }
 
+type ActiveLine = 'morgan' | 'student' | null;
+
+interface LineScore {
+  transcript: string;
+  result: ScoreResult;
+}
+
 export const ShadowingPractice: React.FC<ShadowingPracticeProps> = ({
   turns,
   onComplete,
   onExit,
 }) => {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [transcript, setTranscript] = useState<string>('');
-  const [scoreResult, setScoreResult] = useState<ScoreResult | null>(null);
+  const [currentExchange, setCurrentExchange] = useState(0);
+  const [activeLine, setActiveLine] = useState<ActiveLine>(null);
+  const [morganScore, setMorganScore] = useState<LineScore | null>(null);
+  const [studentScore, setStudentScore] = useState<LineScore | null>(null);
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
+  const [hasAutoPlayed, setHasAutoPlayed] = useState(false);
 
   const { isRecording, isTranscribing, startRecording, stopRecording } = useAudioRecorder();
   const { isPlaying, playMp3 } = useAudioPlayer();
 
-  // Flatten turns into a sequence of practice steps
-  const steps = useMemo<PracticeStep[]>(() => {
-    const result: PracticeStep[] = [];
-
-    turns.forEach((turn, index) => {
-      // First turn: include Morgan's opening line
-      if (index === 0 && turn.morgan) {
-        result.push({ type: 'morgan', text: turn.morgan });
-      }
-
-      // Student's corrected line (what they should say)
-      if (turn.corrected) {
-        result.push({
-          type: 'student',
-          text: turn.corrected,
-          originalText: turn.student,
-        });
-      }
-
-      // Morgan's reply
-      if (turn.reply) {
-        result.push({ type: 'morgan', text: turn.reply });
-      }
-    });
-
-    return result;
+  // Build exchanges from turns
+  // Each exchange has Morgan's line and the student's response
+  const exchanges = useMemo(() => {
+    return turns.map((turn) => ({
+      morgan: turn.morgan || '',
+      student: turn.student || '',
+      corrected: turn.corrected || turn.student || '',
+      reply: turn.reply || '',
+    }));
   }, [turns]);
 
-  const currentStep = steps[currentIndex];
-  const isLastStep = currentIndex === steps.length - 1;
+  const currentTurn = exchanges[currentExchange];
+  const isLastExchange = currentExchange === exchanges.length - 1;
+
+  // Check if student line has a correction (different from original)
+  const hasCorrectedVersion = currentTurn &&
+    currentTurn.corrected.toLowerCase().trim() !== currentTurn.student.toLowerCase().trim();
 
   // Fetch TTS for a line
   const fetchTTS = useCallback(async (text: string): Promise<string> => {
+    if (!text) return '';
     try {
       const res = await fetch('/api/tts', {
         method: 'POST',
@@ -78,67 +69,107 @@ export const ShadowingPractice: React.FC<ShadowingPracticeProps> = ({
     }
   }, []);
 
-  // Play the current line
-  const handlePlay = useCallback(async () => {
-    if (!currentStep || isPlaying || isLoadingAudio) return;
+  // Play Morgan's line
+  const handlePlayMorgan = useCallback(async () => {
+    if (!currentTurn?.morgan || isPlaying || isLoadingAudio) return;
 
     setIsLoadingAudio(true);
-    const audio = await fetchTTS(currentStep.text);
+    const audio = await fetchTTS(currentTurn.morgan);
     setIsLoadingAudio(false);
 
     if (audio) {
       await playMp3(audio);
     }
-  }, [currentStep, isPlaying, isLoadingAudio, fetchTTS, playMp3]);
+  }, [currentTurn, isPlaying, isLoadingAudio, fetchTTS, playMp3]);
 
-  // Auto-play when step changes (for Morgan lines)
+  // Auto-play Morgan's line when exchange changes
   useEffect(() => {
-    if (currentStep?.type === 'morgan') {
-      // Small delay to let UI render first
+    if (currentTurn?.morgan && !hasAutoPlayed) {
       const timer = setTimeout(() => {
-        handlePlay();
+        handlePlayMorgan();
+        setHasAutoPlayed(true);
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [currentIndex]); // Only trigger on index change, not handlePlay
+  }, [currentExchange, hasAutoPlayed]);
 
-  // Handle recording
-  const handleToggleRecord = useCallback(async () => {
+  // Handle recording for a specific line
+  const handleToggleRecord = useCallback(async (line: 'morgan' | 'student') => {
     if (isRecording) {
       const result = await stopRecording();
       if (result) {
-        setTranscript(result);
-        const score = scorePronunciation(currentStep?.text || '', result);
-        setScoreResult(score);
+        const targetText = line === 'morgan' ? currentTurn.morgan : currentTurn.corrected;
+        const score = scorePronunciation(targetText, result);
+        const lineScore = { transcript: result, result: score };
+
+        if (line === 'morgan') {
+          setMorganScore(lineScore);
+        } else {
+          setStudentScore(lineScore);
+        }
       }
+      setActiveLine(null);
     } else {
-      setTranscript('');
-      setScoreResult(null);
+      // Clear previous score for this line
+      if (line === 'morgan') {
+        setMorganScore(null);
+      } else {
+        setStudentScore(null);
+      }
+      setActiveLine(line);
       await startRecording();
     }
-  }, [isRecording, startRecording, stopRecording, currentStep]);
+  }, [isRecording, startRecording, stopRecording, currentTurn]);
 
-  // Handle Try Again
-  const handleTryAgain = useCallback(() => {
-    setTranscript('');
-    setScoreResult(null);
+  // Retry a specific line
+  const handleRetry = useCallback((line: 'morgan' | 'student') => {
+    if (line === 'morgan') {
+      setMorganScore(null);
+    } else {
+      setStudentScore(null);
+    }
   }, []);
 
-  // Handle Next
+  // Go to next exchange
   const handleNext = useCallback(() => {
-    setTranscript('');
-    setScoreResult(null);
+    setMorganScore(null);
+    setStudentScore(null);
+    setActiveLine(null);
+    setHasAutoPlayed(false);
 
-    if (isLastStep) {
+    if (isLastExchange) {
       onComplete();
     } else {
-      setCurrentIndex((prev) => prev + 1);
+      setCurrentExchange((prev) => prev + 1);
     }
-  }, [isLastStep, onComplete]);
+  }, [isLastExchange, onComplete]);
 
-  if (!currentStep) {
+  if (!currentTurn) {
     return null;
   }
+
+  const renderScoreResult = (score: ScoreResult) => (
+    <div className="text-lg font-medium leading-relaxed flex flex-wrap gap-1">
+      {score.wordResults.map((wr, idx) => (
+        <span
+          key={idx}
+          className={
+            wr.status === 'hit'
+              ? 'text-green-600 bg-green-50 px-1 rounded'
+              : 'text-red-400 line-through decoration-red-300 decoration-2'
+          }
+        >
+          {wr.word}
+        </span>
+      ))}
+    </div>
+  );
+
+  const renderScoreBadge = (score: ScoreResult) => (
+    <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${score.bg} ${score.color}`}>
+      {score.label} ({score.accuracy}%)
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -156,7 +187,7 @@ export const ShadowingPractice: React.FC<ShadowingPracticeProps> = ({
               Shadowing Practice
             </span>
             <span className="text-[10px] text-slate-400 font-medium">
-              {currentIndex + 1} of {steps.length}
+              Exchange {currentExchange + 1} of {exchanges.length}
             </span>
           </div>
           <div className="w-16" />
@@ -166,122 +197,149 @@ export const ShadowingPractice: React.FC<ShadowingPracticeProps> = ({
       {/* Progress */}
       <div className="bg-white px-4 py-3 border-b border-slate-100">
         <div className="max-w-xl mx-auto">
-          <ProgressBar current={currentIndex + 1} total={steps.length} />
+          <ProgressBar current={currentExchange + 1} total={exchanges.length} />
         </div>
       </div>
 
-      <main className="flex-1 p-6 max-w-xl mx-auto w-full flex flex-col gap-6">
-        {/* Target Sentence */}
-        <section className="space-y-3">
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-            {currentStep.type === 'morgan' ? 'Morgan says' : 'Your turn to say'}
-          </p>
+      <main className="flex-1 p-4 max-w-xl mx-auto w-full flex flex-col gap-4">
+        {/* Morgan's Line */}
+        <section className="bg-white p-5 rounded-2xl border-2 border-blue-100 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
+              Morgan says
+            </span>
+            {morganScore && renderScoreBadge(morganScore.result)}
+          </div>
 
-          <div className="bg-white p-6 rounded-2xl border-2 border-slate-100 shadow-sm min-h-[120px] flex items-center">
-            {scoreResult ? (
-              <div className="text-xl font-medium leading-relaxed flex flex-wrap gap-1">
-                {scoreResult.wordResults.map((wr, idx) => (
-                  <span
-                    key={idx}
-                    className={
-                      wr.status === 'hit'
-                        ? 'text-green-600 bg-green-50 px-1 rounded'
-                        : 'text-red-400 line-through decoration-red-300 decoration-2'
-                    }
-                  >
-                    {wr.word}
-                  </span>
-                ))}
-              </div>
+          {/* Morgan's text or score result */}
+          <div className="min-h-[60px] mb-4">
+            {morganScore ? (
+              renderScoreResult(morganScore.result)
             ) : (
-              <p className="text-xl font-medium text-slate-800 leading-relaxed">
-                {currentStep.text}
+              <p className="text-lg font-medium text-slate-800 leading-relaxed">
+                {currentTurn.morgan}
               </p>
             )}
           </div>
 
-          <button
-            onClick={handlePlay}
-            disabled={isPlaying || isLoadingAudio}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors disabled:opacity-50"
-          >
-            <Volume2 className="w-5 h-5" />
-            {isLoadingAudio ? 'Loading...' : isPlaying ? 'Playing...' : 'Listen'}
-          </button>
-        </section>
-
-        {/* Recording Section */}
-        <section className="space-y-4 pt-4 border-t border-slate-200">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              Your Turn
-            </p>
-            {isRecording && (
-              <span className="text-red-500 text-xs font-bold animate-pulse">
-                Recording...
-              </span>
-            )}
-            {isTranscribing && (
-              <span className="text-blue-500 text-xs font-bold animate-pulse">
-                Processing...
-              </span>
-            )}
-          </div>
-
-          <div className="flex flex-col items-center gap-4">
-            <RecordButton
-              isRecording={isRecording}
-              onToggle={handleToggleRecord}
-              disabled={isTranscribing}
-            />
-            <p className="text-sm text-slate-500">
-              {isRecording
-                ? 'Say the sentence out loud...'
-                : isTranscribing
-                ? 'Checking your pronunciation...'
-                : 'Tap microphone to start speaking'}
-            </p>
-          </div>
-        </section>
-
-        {/* Transcription display */}
-        {transcript && !scoreResult && (
-          <div className="bg-slate-100 p-4 rounded-xl">
-            <p className="text-sm text-slate-600">{transcript}</p>
-          </div>
-        )}
-
-        {/* Score Result */}
-        {scoreResult && (
-          <section className="animate-in slide-in-from-bottom-4 fade-in duration-300">
-            <div
-              className={`p-5 rounded-2xl border ${scoreResult.bg} ${scoreResult.color} border-transparent flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm`}
+          {/* Morgan line actions */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={handlePlayMorgan}
+              disabled={isPlaying || isLoadingAudio}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors disabled:opacity-50 text-sm font-medium"
             >
-              <div>
-                <p className="font-bold text-xl">{scoreResult.label}</p>
-                <p className="text-sm opacity-80">Accuracy: {scoreResult.accuracy}%</p>
-              </div>
+              <Volume2 className="w-4 h-4" />
+              {isLoadingAudio ? 'Loading...' : isPlaying ? 'Playing...' : 'Listen'}
+            </button>
 
-              <div className="flex gap-2">
-                <button
-                  onClick={handleTryAgain}
-                  className="flex items-center gap-1 px-4 py-2 bg-white/50 rounded-xl text-sm font-medium hover:bg-white/70 transition-colors"
-                >
-                  <RefreshCw className="w-4 h-4" /> Try Again
-                </button>
-                <button
-                  onClick={handleNext}
-                  className="flex items-center gap-1 px-4 py-2 bg-white rounded-xl text-sm font-medium hover:bg-white/90 transition-colors"
-                >
-                  {isLastStep ? 'Finish' : 'Next'} <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          </section>
-        )}
+            {morganScore ? (
+              <button
+                onClick={() => handleRetry('morgan')}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors text-sm font-medium"
+              >
+                <RefreshCw className="w-4 h-4" /> Try Again
+              </button>
+            ) : (
+              <button
+                onClick={() => handleToggleRecord('morgan')}
+                disabled={isTranscribing || (activeLine !== null && activeLine !== 'morgan')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                  isRecording && activeLine === 'morgan'
+                    ? 'bg-red-500 text-white animate-pulse'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                } disabled:opacity-50`}
+              >
+                {isRecording && activeLine === 'morgan' ? (
+                  <>
+                    <Square className="w-4 h-4 fill-current" /> Stop
+                  </>
+                ) : isTranscribing && activeLine === 'morgan' ? (
+                  'Processing...'
+                ) : (
+                  <>
+                    <Mic className="w-4 h-4" /> Shadow
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        </section>
+
+        {/* Student's Line */}
+        <section className="bg-white p-5 rounded-2xl border-2 border-green-100 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold text-green-600 uppercase tracking-wider">
+              Your turn
+            </span>
+            {studentScore && renderScoreBadge(studentScore.result)}
+          </div>
+
+          {/* Student's corrected text (or original if no correction) */}
+          <div className="min-h-[60px] mb-2">
+            {studentScore ? (
+              renderScoreResult(studentScore.result)
+            ) : (
+              <p className="text-lg font-medium text-slate-800 leading-relaxed">
+                {currentTurn.corrected}
+              </p>
+            )}
+          </div>
+
+          {/* Original text if different from corrected */}
+          {hasCorrectedVersion && !studentScore && (
+            <p className="text-sm text-slate-400 mb-4 italic">
+              You said: "{currentTurn.student}"
+            </p>
+          )}
+
+          {/* Student line actions */}
+          <div className="flex items-center gap-2 flex-wrap mt-3">
+            {studentScore ? (
+              <button
+                onClick={() => handleRetry('student')}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors text-sm font-medium"
+              >
+                <RefreshCw className="w-4 h-4" /> Try Again
+              </button>
+            ) : (
+              <button
+                onClick={() => handleToggleRecord('student')}
+                disabled={isTranscribing || (activeLine !== null && activeLine !== 'student')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                  isRecording && activeLine === 'student'
+                    ? 'bg-red-500 text-white animate-pulse'
+                    : 'bg-green-600 text-white hover:bg-green-700'
+                } disabled:opacity-50`}
+              >
+                {isRecording && activeLine === 'student' ? (
+                  <>
+                    <Square className="w-4 h-4 fill-current" /> Stop
+                  </>
+                ) : isTranscribing && activeLine === 'student' ? (
+                  'Processing...'
+                ) : (
+                  <>
+                    <Mic className="w-4 h-4" /> Practice
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        </section>
+
+        {/* Next Button */}
+        <div className="flex justify-end pt-2">
+          <button
+            onClick={handleNext}
+            className="flex items-center gap-2 px-6 py-3 bg-slate-800 text-white rounded-xl font-medium hover:bg-slate-900 transition-colors"
+          >
+            {isLastExchange ? 'Finish' : 'Next'} <ChevronRight className="w-5 h-5" />
+          </button>
+        </div>
 
         {/* Completion Modal */}
-        {isLastStep && scoreResult && scoreResult.accuracy >= 70 && (
+        {isLastExchange && (morganScore || studentScore) && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
             <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl space-y-6 text-center">
               <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto text-green-600">
