@@ -12,7 +12,7 @@ export interface UseChatReturn {
   messages: ChatMessage[];
   isLoading: boolean;
   sessionComplete: boolean;
-  sendMessage: (text: string) => Promise<{ reply: string; audio: string } | null>;
+  sendMessage: (text: string) => Promise<{ reply: string } | null>;
   getSummary: () => Promise<{ summary: string; practiceTurns: PracticeTurn[] } | null>;
   clearMessages: () => void;
   addCoachMessage: (content: string) => void;
@@ -37,7 +37,7 @@ export function useChat({ coachName, initialMessage }: UseChatOptions): UseChatR
   const [sessionComplete, setSessionComplete] = useState(false);
 
   const sendMessage = useCallback(
-    async (text: string): Promise<{ reply: string; audio: string } | null> => {
+    async (text: string): Promise<{ reply: string } | null> => {
       const trimmed = text.trim();
       if (!trimmed || isLoading) return null;
 
@@ -76,8 +76,8 @@ export function useChat({ coachName, initialMessage }: UseChatOptions): UseChatR
           setSessionComplete(true);
         }
 
-        // Audio is now included in the response (generated server-side)
-        return { reply: data.reply, audio: data.reply_audio || '' };
+        // Return reply text - client will stream TTS separately
+        return { reply: data.reply };
       } catch (error) {
         console.error('Send message error:', error);
         // Remove the student message on error

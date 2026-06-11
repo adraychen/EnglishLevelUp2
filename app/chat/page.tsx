@@ -20,7 +20,7 @@ function ChatContent() {
   });
 
   const { isRecording, isTranscribing, startRecording, stopRecording } = useAudioRecorder();
-  const { playMp3 } = useAudioPlayer();
+  const { playMp3, playChunked } = useAudioPlayer();
 
   const [showReview, setShowReview] = useState(false);
   const [reviewContent, setReviewContent] = useState('');
@@ -76,11 +76,12 @@ function ChatContent() {
   const handleSend = useCallback(
     async (text: string) => {
       const result = await sendMessage(text);
-      if (result?.audio) {
-        playMp3(result.audio);
+      if (result?.reply) {
+        // Stream TTS audio in chunks for faster playback
+        playChunked(result.reply);
       }
     },
-    [sendMessage, playMp3]
+    [sendMessage, playChunked]
   );
 
   const handleStartRecording = useCallback(async () => {

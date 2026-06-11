@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getChatResponse } from '@/services/coach';
 import { correctSentence } from '@/services/correction';
-import { generateSpeech, VOICES } from '@/services/tts';
 import { getChatState, setChatState } from '@/lib/chatSession';
 import { ChatMessage, PracticeTurn, Topic, CoachStyle } from '@/types';
 
@@ -40,6 +39,7 @@ export async function POST(request: NextRequest) {
 
       console.log('DEBUG exchanges:', exchanges, 'MAX:', MAX_EXCHANGES, 'isClosing:', isClosing);
 
+      // Get coach response
       reply = await getChatResponse({
         studentText,
         history,
@@ -48,12 +48,8 @@ export async function POST(request: NextRequest) {
         isClosing,
       });
 
-      // Run correction and TTS in parallel for faster response
-      const voiceConfig = VOICES.morgan;
-      const [corrected, replyAudio] = await Promise.all([
-        correctSentence(studentText),
-        generateSpeech({ text: reply, ...voiceConfig }),
-      ]);
+      // Correct student's sentence (runs while client streams TTS)
+      const corrected = await correctSentence(studentText);
 
       // Store turn for review/practice
       turns.push({
@@ -64,33 +60,6 @@ export async function POST(request: NextRequest) {
       });
 
       sessionComplete = isClosing;
-
-      // Update history
-      history.push({ id: crypto.randomUUID(), role: 'student', content: studentText });
-      history.push({ id: crypto.randomUUID(), role: 'coach', content: reply });
-
-      // Keep last 12 messages for context
-      const trimmedHistory = history.slice(-12).map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
-
-      // Save session to database
-      await setChatState({
-        ...session,
-        history: trimmedHistory,
-        turns,
-        exchanges,
-        lastQuestion: reply,
-      });
-
-      console.log('DEBUG respond exchanges:', exchanges, 'sessionComplete:', sessionComplete);
-
-      return NextResponse.json({
-        reply,
-        reply_audio: replyAudio,
-        session_complete: sessionComplete,
-      });
     } else {
       // Dora — free chat
       reply = await getChatResponse({
@@ -100,7 +69,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Update history (for Dora)
+    // Update history
     history.push({ id: crypto.randomUUID(), role: 'student', content: studentText });
     history.push({ id: crypto.randomUUID(), role: 'coach', content: reply });
 
@@ -119,16 +88,9 @@ export async function POST(request: NextRequest) {
       lastQuestion: reply,
     });
 
-    // Generate TTS audio for Dora
-    const voiceConfig = VOICES.dora;
-    const replyAudio = await generateSpeech({
-      text: reply,
-      ...voiceConfig,
-    });
-
+    // Return reply immediately - client will stream TTS via /api/tts-stream
     return NextResponse.json({
       reply,
-      reply_audio: replyAudio,
       session_complete: sessionComplete,
     });
   } catch (error) {
