@@ -168,6 +168,10 @@ interface ChatResponseOptions {
   history: ChatMessage[];
   style: CoachStyle;
   topic?: Topic | null;
+  // NOTE: taughtWords is no longer used — vocabulary is guidance for Morgan, not a
+  // checklist, and the app no longer tracks words within a topic. Kept optional for
+  // backward compatibility; can be removed from callers and this interface as cleanup.
+  taughtWords?: string[];
   isClosing?: boolean;
 }
 
@@ -240,19 +244,21 @@ export async function getChatResponse({
       .filter(Boolean);
     const poolStr = poolItems.join('\n');
 
-    // Level-based complexity guidance
+    // Level-based complexity guidance (descriptive level words)
     const levelLow = level.toLowerCase();
     let levelGuidance: string;
-    if (levelLow.includes('a1') || levelLow.includes('beginner')) {
+    if (levelLow.includes('beginner')) {
       levelGuidance =
         'The student is a BEGINNER. Use short, simple sentences and very common everyday words. Speak slowly and clearly. Avoid idioms and complex grammar.';
-    } else if (
-      levelLow.includes('a2') ||
-      levelLow.includes('b1') ||
-      levelLow.includes('intermediate')
-    ) {
+    } else if (levelLow.includes('elementary')) {
       levelGuidance =
-        'The student is at an INTERMEDIATE level. Use natural everyday English with common expressions. Keep it clear and accessible, but you can use a little more variety in your phrasing.';
+        'The student is at an ELEMENTARY level. Use simple, common everyday words and short, clear sentences, with just a little more range than for a beginner. Avoid idioms and complex grammar.';
+    } else if (levelLow.includes('intermediate')) {
+      levelGuidance =
+        'The student is at an INTERMEDIATE level. Use natural everyday English with common expressions and soft language like "a bit", "quite", and "tend to". You can use simple contrast ("but", "however") and a little more variety in your phrasing.';
+    } else if (levelLow.includes('advanced')) {
+      levelGuidance =
+        'The student is at an ADVANCED level. Use fuller, more nuanced language and a wider range of vocabulary, while staying clear and accessible.';
     } else {
       levelGuidance =
         'Use clear, natural, accessible English suitable for a learner. Keep sentences easy to follow.';
