@@ -51,10 +51,13 @@ Morgan:
 A Morgan session runs for a set number of exchanges (6 turns), then ends with a review.
 
 ### Topic intro
-When a student starts a topic for the **first time**, Morgan introduces the topic
-using the `intro` text before beginning the conversation. This helps set context
-for what they'll practice. On **revisits**, Morgan skips the intro and uses a
-"welcome back" style opening instead.
+The `eec_topics` table has two intro-related fields:
+- **`intro`** — A short written description shown on the dashboard
+- **`intro_script`** — A spoken introduction that Morgan reads aloud via TTS at
+  the start of every topic session (first visit and revisits)
+
+When the topic starts, Morgan speaks the `intro_script` first, then her opening
+line. This happens every time the topic is selected.
 
 ### The review
 At the end of a session the app shows a **Conversation Review** — the whole
@@ -64,18 +67,22 @@ Dora sessions show a simpler error review.
 
 ### The practice round (shadowing)
 From the review, the student can start a **practice round** that replays the
-finished conversation line by line:
+finished conversation as exchanges (Morgan's line + student's line together):
 
-1. **Auto-play**: Morgan's line plays automatically via TTS
-2. **Listen**: Student can replay the audio using the Listen button
-3. **Record**: Student taps the microphone to speak the target sentence
+1. **Exchange view**: Each exchange shows Morgan's line and the student's
+   corrected line (with original shown below in smaller text if different)
+2. **Auto-play**: Morgan's line plays automatically via TTS when the exchange loads
+3. **Dual recording**: Student can record on either line:
+   - **Shadow** button on Morgan's line — practice shadowing what Morgan said
+   - **Practice** button on student's line — practice the corrected sentence
 4. **Transcribe & Score**: Speech is transcribed via Whisper and scored for accuracy
 5. **Word highlighting**: Matched words appear green; missed words appear red with strikethrough
-6. **Try Again / Next**: Student can retry for a better score or proceed to the next line
+6. **Try Again**: Each line has its own retry button after scoring
+7. **Next**: Advances to the next exchange
 
 Accuracy scoring uses word matching with normalization (handles contractions,
 numbers, punctuation). Scores ≥90% show "Excellent!", ≥70% show "Almost there",
-below 70% show "Try again". A completion modal appears after the final step.
+below 70% show "Try again". A completion modal appears after the final exchange.
 
 The practice data lives only in the browser session — it is never saved to the database.
 
@@ -92,6 +99,16 @@ Progression is **per topic** (not per word):
 - If all topics are completed, auto-advance cycles back to the first topic
 
 Learning is tracked per user so progress carries across sessions.
+
+### Level adaptation
+Morgan adapts her language complexity based on the topic's `level` field:
+
+| Level | Morgan's style |
+|-------|----------------|
+| **Beginner** | Short, simple sentences, very common words, no idioms |
+| **Elementary** | Simple sentences with a little more range, no idioms |
+| **Intermediate** | Natural everyday English, common expressions, soft language ("a bit", "quite") |
+| **Advanced** | Fuller, more nuanced language, wider vocabulary range |
 
 ---
 
@@ -121,8 +138,13 @@ vocabulary, phrasing, and sentence structure with scores and personalized feedba
 | Dora conversation + sentence correction | Groq API (llama-3.1-8b-instant) |
 | Morgan conversation + review + analysis | Groq API (llama-3.3-70b-versatile) |
 | Speech-to-text | Groq Whisper turbo |
-| Text-to-speech | Google Cloud TTS (high-quality neural voices) |
+| Text-to-speech | Edge TTS (Microsoft neural voices) — see note below |
 | Hosting | Render.com (Node) |
+
+**TTS Note:** Edge TTS provides high-quality neural voices without an API key.
+However, Microsoft may block requests from cloud/datacenter IPs (403 errors).
+If this occurs, alternatives include Google Cloud TTS (requires API key) or
+gTTS (lower quality but reliable).
 
 ---
 
@@ -135,7 +157,7 @@ vocabulary, phrasing, and sentence structure with scores and personalized feedba
 | `turns` | Individual turns within a session (Morgan's question, student's response, correction) |
 | `session_analysis` | AI-generated analysis per session: vocabulary, phrasing, structure scores and notes |
 | `progress_reports` | Aggregated reports generated every 5 sessions with overall progress assessment |
-| `eec_topics` | Topics for Morgan: order, name, level, intro, opening line, vocabulary pool, focus keyword, and sample coach views |
+| `eec_topics` | Topics for Morgan: order, name, level, intro (dashboard text), intro_script (spoken TTS), opening line, vocabulary pool, focus keyword, and sample coach views |
 | `eec_learning_log` | Records topic completion per user for progression tracking |
 | `chat_state` | Server-side session storage for active conversations (avoids cookie size limits) |
 
@@ -195,7 +217,6 @@ english-level-up/
 - Node.js 18+ (LTS recommended)
 - A [Groq](https://console.groq.com) API key (free)
 - A [Supabase](https://supabase.com) project (free)
-- A [Google Cloud](https://console.cloud.google.com) project with Text-to-Speech API enabled
 
 ### Database setup
 Create the following tables in Supabase:
@@ -275,7 +296,8 @@ CREATE TABLE eec_topics (
   topic_order INTEGER,
   name TEXT,
   level TEXT,
-  intro TEXT,
+  intro TEXT,           -- Written description for dashboard
+  intro_script TEXT,    -- Spoken introduction (TTS) for Morgan
   opening TEXT,
   vocabulary_pool TEXT,
   focus_keyword TEXT,
@@ -301,12 +323,6 @@ CREATE TABLE chat_state (
 );
 ```
 
-### Google Cloud TTS setup
-1. Create a Google Cloud project
-2. Enable the Cloud Text-to-Speech API
-3. Create a service account and download the JSON key
-4. Add the JSON content to your environment variables
-
 ### Local Setup
 
 1. **Clone the repo**
@@ -325,7 +341,6 @@ CREATE TABLE chat_state (
    GROQ_API_KEY=your_groq_api_key
    NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
    SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-   GOOGLE_CLOUD_CREDENTIALS={"type":"service_account",...}
    ```
 
 4. **Run the dev server**
@@ -357,7 +372,9 @@ CREATE TABLE chat_state (
 | `GROQ_API_KEY` | Groq API key for the LLMs and Whisper transcription |
 | `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase project URL (REST API URL, not PostgreSQL connection string) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key for server-side API routes |
-| `GOOGLE_CLOUD_CREDENTIALS` | Google Cloud service account JSON (paste entire JSON content) |
+
+**Note:** Edge TTS does not require an API key. If you switch to Google Cloud TTS,
+add `GOOGLE_CLOUD_CREDENTIALS` with your service account JSON.
 
 ---
 
