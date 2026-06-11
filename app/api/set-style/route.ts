@@ -140,18 +140,36 @@ export async function POST(request: NextRequest) {
       topicId: topicId || undefined,
     });
 
-    // Generate opening audio
+    // Generate audio - intro_script (if Morgan) and opening
     const voiceConfig = style === 'casual' ? VOICES.dora : VOICES.morgan;
-    const openingAudio = await generateSpeech({
-      text: opening,
-      ...voiceConfig,
-    });
+
+    // For Morgan, generate intro_script audio and opening audio in parallel
+    let introScriptAudio = '';
+    let openingAudio = '';
+
+    if (style === 'clear' && topic?.intro_script) {
+      // Generate both in parallel for speed
+      const [introAudio, opAudio] = await Promise.all([
+        generateSpeech({ text: topic.intro_script, ...voiceConfig }),
+        generateSpeech({ text: opening, ...voiceConfig }),
+      ]);
+      introScriptAudio = introAudio;
+      openingAudio = opAudio;
+    } else {
+      // Dora or no intro_script - just generate opening
+      openingAudio = await generateSpeech({
+        text: opening,
+        ...voiceConfig,
+      });
+    }
 
     return NextResponse.json({
       style,
       coach_name: coachName,
       opening,
       opening_audio: openingAudio,
+      intro_script: topic?.intro_script || '',
+      intro_script_audio: introScriptAudio,
     });
   } catch (error) {
     console.error('Set style error:', error);

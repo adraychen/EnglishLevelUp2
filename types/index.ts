@@ -62,7 +62,8 @@ export interface Topic {
   name: string;
   level: string;
   opening: string | Array<{ opening: string }>;
-  intro?: string; // Topic introduction shown on first visit
+  intro?: string; // Topic introduction shown on dashboard (written)
+  intro_script?: string; // Topic introduction spoken by Morgan (TTS)
   vocabulary_pool: string;
   focus_keyword: string;
   coach_views?: string | Array<{ coach_views: string }>;

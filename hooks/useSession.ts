@@ -7,14 +7,21 @@ export interface SessionState {
   style: CoachStyle;
   coachName: CoachName;
   opening: string;
+  introScript: string;
   topic: Topic | null;
   isLoading: boolean;
+}
+
+export interface SessionAudio {
+  introScriptAudio: string;
+  openingAudio: string;
 }
 
 const DEFAULT_SESSION: SessionState = {
   style: 'casual',
   coachName: 'Dora',
   opening: 'Say anything to start chatting!',
+  introScript: '',
   topic: null,
   isLoading: false,
 };
@@ -26,8 +33,8 @@ export function useSession(initialStyle: CoachStyle = 'casual') {
     coachName: initialStyle === 'casual' ? 'Dora' : 'Morgan',
   });
 
-  const switchStyle = useCallback(async (newStyle: CoachStyle, topicId?: number) => {
-    if (newStyle === session.style && !topicId) return;
+  const switchStyle = useCallback(async (newStyle: CoachStyle, topicId?: number): Promise<SessionAudio | null> => {
+    if (newStyle === session.style && !topicId) return null;
 
     setSession((prev) => ({ ...prev, isLoading: true }));
 
@@ -44,12 +51,16 @@ export function useSession(initialStyle: CoachStyle = 'casual') {
         style: data.style || newStyle,
         coachName: data.coach_name || (newStyle === 'casual' ? 'Dora' : 'Morgan'),
         opening: data.opening || 'Say anything to start chatting!',
+        introScript: data.intro_script || '',
         topic: null, // Topic is stored server-side
         isLoading: false,
       });
 
-      // Return audio for the opening (Morgan greets out loud)
-      return data.opening_audio || '';
+      // Return audio for intro_script and opening
+      return {
+        introScriptAudio: data.intro_script_audio || '',
+        openingAudio: data.opening_audio || '',
+      };
     } catch (error) {
       console.error('Switch style error:', error);
       setSession((prev) => ({
@@ -58,11 +69,11 @@ export function useSession(initialStyle: CoachStyle = 'casual') {
         coachName: newStyle === 'casual' ? 'Dora' : 'Morgan',
         isLoading: false,
       }));
-      return '';
+      return null;
     }
   }, [session.style]);
 
-  const resetSession = useCallback(async () => {
+  const resetSession = useCallback(async (): Promise<SessionAudio | null> => {
     setSession((prev) => ({ ...prev, isLoading: true }));
 
     try {
@@ -81,15 +92,19 @@ export function useSession(initialStyle: CoachStyle = 'casual') {
         style: data.style || session.style,
         coachName: data.coach_name || session.coachName,
         opening: data.opening || 'Say anything to start chatting!',
+        introScript: data.intro_script || '',
         topic: null,
         isLoading: false,
       });
 
-      return data.opening_audio || '';
+      return {
+        introScriptAudio: data.intro_script_audio || '',
+        openingAudio: data.opening_audio || '',
+      };
     } catch (error) {
       console.error('Reset session error:', error);
       setSession((prev) => ({ ...prev, isLoading: false }));
-      return '';
+      return null;
     }
   }, [session.style, session.coachName]);
 

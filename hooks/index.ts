@@ -1,5 +1,5 @@
 export { useSession } from './useSession';
-export type { SessionState } from './useSession';
+export type { SessionState, SessionAudio } from './useSession';
 
 export { useChat } from './useChat';
 export type { UseChatOptions, UseChatReturn } from './useChat';

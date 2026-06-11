@@ -4,7 +4,7 @@ import React, { Suspense, useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ChatBox, ChatInput, CoachToggle } from '@/components/chat';
-import { useSession, useChat, useAudioRecorder, useAudioPlayer } from '@/hooks';
+import { useSession, useChat, useAudioRecorder, useAudioPlayer, SessionAudio } from '@/hooks';
 import { CoachStyle, PracticeTurn } from '@/types';
 import { ReviewModal } from '@/components/review/ReviewModal';
 
@@ -27,13 +27,13 @@ function ChatContent() {
   const [practiceTurns, setPracticeTurns] = useState<PracticeTurn[]>([]);
   const [isLoadingReview, setIsLoadingReview] = useState(false);
   const [initialized, setInitialized] = useState(false);
-  const [pendingOpeningAudio, setPendingOpeningAudio] = useState<string>('');
+  const [pendingAudio, setPendingAudio] = useState<SessionAudio | null>(null);
 
   // Initialize session on mount
   useEffect(() => {
     const initSession = async () => {
       const audio = await switchStyle(initialStyle, initialTopicId);
-      setPendingOpeningAudio(audio || '');
+      setPendingAudio(audio);
       setInitialized(true);
     };
     initSession();
@@ -41,15 +41,26 @@ function ChatContent() {
   }, []);
 
   // Add opening message when session opening changes and no messages exist
+  // Play intro_script audio first (if present), then opening audio
   useEffect(() => {
     if (initialized && session.opening && messages.length === 0 && !session.isLoading) {
       addCoachMessage(session.opening);
-      if (pendingOpeningAudio) {
-        playMp3(pendingOpeningAudio);
-        setPendingOpeningAudio('');
+      if (pendingAudio) {
+        const playSequentially = async () => {
+          // Play intro_script audio first (if present)
+          if (pendingAudio.introScriptAudio) {
+            await playMp3(pendingAudio.introScriptAudio);
+          }
+          // Then play opening audio
+          if (pendingAudio.openingAudio) {
+            await playMp3(pendingAudio.openingAudio);
+          }
+        };
+        playSequentially();
+        setPendingAudio(null);
       }
     }
-  }, [initialized, session.opening, session.isLoading, messages.length, addCoachMessage, pendingOpeningAudio, playMp3]);
+  }, [initialized, session.opening, session.isLoading, messages.length, addCoachMessage, pendingAudio, playMp3]);
 
   // Handle session complete
   useEffect(() => {
@@ -91,7 +102,7 @@ function ChatContent() {
     async (style: CoachStyle) => {
       clearMessages();
       const audio = await switchStyle(style);
-      setPendingOpeningAudio(audio || '');
+      setPendingAudio(audio);
       // Opening will be added by the useEffect watching session.opening
     },
     [switchStyle, clearMessages]
@@ -121,7 +132,7 @@ function ChatContent() {
     setPracticeTurns([]);
     clearMessages();
     const audio = await resetSession();
-    setPendingOpeningAudio(audio || '');
+    setPendingAudio(audio);
     // Opening will be added by the useEffect watching session.opening
   }, [resetSession, clearMessages]);
 
