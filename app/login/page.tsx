@@ -98,6 +98,12 @@ function LoginForm() {
         </form>
 
         <p className="text-center text-sm text-slate-600">
+          <Link href="/reset-password" className="text-blue-600 hover:underline font-medium">
+            Forgot password?
+          </Link>
+        </p>
+
+        <p className="text-center text-sm text-slate-600">
           Don&apos;t have an account?{' '}
           <Link href="/register" className="text-blue-600 hover:underline font-medium">
             Sign up
