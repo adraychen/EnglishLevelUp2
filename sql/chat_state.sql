@@ -8,3 +8,10 @@ CREATE TABLE IF NOT EXISTS chat_state (
 
 -- Index for cleanup queries (optional)
 CREATE INDEX IF NOT EXISTS idx_chat_state_updated_at ON chat_state(updated_at);
+
+-- Enable Row Level Security
+ALTER TABLE chat_state ENABLE ROW LEVEL SECURITY;
+
+-- Block direct API access (app uses service role key which bypasses RLS)
+DROP POLICY IF EXISTS "No direct access" ON chat_state;
+CREATE POLICY "No direct access" ON chat_state FOR ALL TO anon, authenticated USING (false);

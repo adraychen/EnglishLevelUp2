@@ -161,6 +161,23 @@ gTTS (lower quality but reliable).
 | `eec_learning_log` | Records topic completion per user for progression tracking |
 | `chat_state` | Server-side session storage for active conversations (avoids cookie size limits) |
 
+### Row Level Security (RLS)
+
+All tables have RLS enabled to protect against direct API access. The app uses the
+Supabase service role key (which bypasses RLS) for all database operations via
+server-side API routes. Direct access via the anon or authenticated roles is blocked.
+
+| Table | Policy |
+|-------|--------|
+| `users` | No direct access |
+| `sessions` | No direct access |
+| `turns` | No direct access |
+| `session_analysis` | No direct access |
+| `progress_reports` | No direct access |
+| `chat_state` | No direct access |
+| `eec_learning_log` | No direct access |
+| `eec_topics` | Read-only (topics are public content) |
+
 ---
 
 ## Project Structure
@@ -321,6 +338,29 @@ CREATE TABLE chat_state (
   state JSONB NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Enable Row Level Security on all tables
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE turns ENABLE ROW LEVEL SECURITY;
+ALTER TABLE session_analysis ENABLE ROW LEVEL SECURITY;
+ALTER TABLE progress_reports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE chat_state ENABLE ROW LEVEL SECURITY;
+ALTER TABLE eec_learning_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE eec_topics ENABLE ROW LEVEL SECURITY;
+
+-- RLS policies: block direct API access (app uses service role key)
+CREATE POLICY "No direct access" ON users FOR ALL TO anon, authenticated USING (false);
+CREATE POLICY "No direct access" ON sessions FOR ALL TO anon, authenticated USING (false);
+CREATE POLICY "No direct access" ON turns FOR ALL TO anon, authenticated USING (false);
+CREATE POLICY "No direct access" ON session_analysis FOR ALL TO anon, authenticated USING (false);
+CREATE POLICY "No direct access" ON progress_reports FOR ALL TO anon, authenticated USING (false);
+CREATE POLICY "No direct access" ON chat_state FOR ALL TO anon, authenticated USING (false);
+CREATE POLICY "No direct access" ON eec_learning_log FOR ALL TO anon, authenticated USING (false);
+
+-- Topics are public content, allow read access
+CREATE POLICY "Topics readable" ON eec_topics FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "No direct write" ON eec_topics FOR ALL TO anon, authenticated USING (false);
 ```
 
 ### Local Setup
