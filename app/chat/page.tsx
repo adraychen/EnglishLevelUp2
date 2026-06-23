@@ -15,7 +15,7 @@ function ChatContent() {
   const initialTopicId = topicIdParam ? parseInt(topicIdParam, 10) : undefined;
 
   const { session, switchStyle, resetSession } = useSession(initialStyle);
-  const { messages, isLoading, sessionComplete, sendMessage, getSummary, clearMessages, addCoachMessage } = useChat({
+  const { messages, isLoading, sendMessage, getSummary, clearMessages, addCoachMessage } = useChat({
     coachName: session.coachName,
   });
 
@@ -62,26 +62,41 @@ function ChatContent() {
     }
   }, [initialized, session.opening, session.isLoading, messages.length, addCoachMessage, pendingAudio, playMp3]);
 
-  // Handle session complete
-  useEffect(() => {
-    if (sessionComplete) {
-      addCoachMessage("That's a great place to pause! Let's look at what we covered today.");
-      setTimeout(() => {
-        handleEndConversation();
-      }, 1000);
+  const handleEndConversation = useCallback(async () => {
+    setShowReview(true);
+    setIsLoadingReview(true);
+
+    const summary = await getSummary();
+    if (summary) {
+      setReviewContent(summary.summary);
+      setPracticeTurns(summary.practiceTurns);
+    } else {
+      setReviewContent('Unable to generate review. Please try again.');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionComplete]);
+    setIsLoadingReview(false);
+  }, [getSummary]);
 
   const handleSend = useCallback(
     async (text: string) => {
       const result = await sendMessage(text);
       if (result?.reply) {
-        // Stream TTS audio in chunks for faster playback
-        playChunked(result.reply);
+        if (result.sessionComplete) {
+          // Closing turn: wait for audio to finish, then show modal
+          try {
+            await playChunked(result.reply);
+          } catch {
+            // Audio failed - continue to modal anyway
+          }
+          // Small delay for smoother transition
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          handleEndConversation();
+        } else {
+          // Normal turn: play audio without waiting
+          playChunked(result.reply);
+        }
       }
     },
-    [sendMessage, playChunked]
+    [sendMessage, playChunked, handleEndConversation]
   );
 
   const handleStartRecording = useCallback(async () => {
@@ -108,20 +123,6 @@ function ChatContent() {
     },
     [switchStyle, clearMessages]
   );
-
-  const handleEndConversation = useCallback(async () => {
-    setShowReview(true);
-    setIsLoadingReview(true);
-
-    const summary = await getSummary();
-    if (summary) {
-      setReviewContent(summary.summary);
-      setPracticeTurns(summary.practiceTurns);
-    } else {
-      setReviewContent('Unable to generate review. Please try again.');
-    }
-    setIsLoadingReview(false);
-  }, [getSummary]);
 
   const handleCloseReview = useCallback(() => {
     setShowReview(false);

@@ -157,12 +157,6 @@ KEEP IT ON TOPIC:
 - Ask simple, natural questions that invite the student to talk about the topic — never
   interview-style, logistics, or problem-solving questions.
 
-ASK ONE SIMPLE QUESTION:
-- When you ask a question, ask ONE short, single question — not two.
-- Do NOT offer an either/or with "or" (for example, avoid "Do you do X, or do you do Y?").
-  Just ask the one most natural question and let the student answer.
-- A single clear question is easier for a learner to answer and keeps the chat natural.
-
 DO NOT explain grammar or give definitions during the chat — it breaks the flow.
 The detailed review comes later, after the conversation.
 
@@ -281,7 +275,7 @@ ${poolStr}
 SAMPLE THINGS YOU MIGHT SAY (for inspiration only):
 ${coachViews}
 
-Acknowledge what the student just said first, then continue the conversation naturally — staying on the topic of ${focus}. Keep your reply clear, warm, and not too long. Recast any mistakes silently. Use a VARIED range of the words and phrases from the list above — do not keep repeating the same one or two; reach for different ones than you used in your previous replies. Ask ONE simple, single question about ${focus} only when it fits — not two, and do not offer an either/or with "or". Never an interview or problem-solving question, and never ask about something the student already told you.`;
+Acknowledge what the student just said first, then continue the conversation naturally — staying on the topic of ${focus}. Keep your reply clear, warm, and not too long. Recast any mistakes silently. Use a VARIED range of the words and phrases from the list above — do not keep repeating the same one or two; reach for different ones than you used in your previous replies. Ask a simple, natural question about ${focus} only when it fits — never an interview or problem-solving question, and never ask about something the student already told you.`;
 
     if (isClosing) {
       userPrompt = `${teachingContext}
