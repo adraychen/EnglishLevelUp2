@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense, useState, useEffect, useCallback } from 'react';
+import React, { Suspense, useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ChatBox, ChatInput, CoachToggle } from '@/components/chat';
@@ -29,9 +29,13 @@ function ChatContent() {
   const [initialized, setInitialized] = useState(false);
   const [pendingAudio, setPendingAudio] = useState<SessionAudio | null>(null);
 
+  // Guard to prevent double opening
+  const openingAddedRef = useRef(false);
+
   // Initialize session on mount
   useEffect(() => {
     const initSession = async () => {
+      openingAddedRef.current = false; // Reset guard on init
       const audio = await switchStyle(initialStyle, initialTopicId);
       setPendingAudio(audio);
       setInitialized(true);
@@ -40,27 +44,41 @@ function ChatContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Add opening message when session opening changes and no messages exist
-  // Play intro_script audio first (if present), then opening audio
+  // Play intro audio first (audio only, no text), then show opening bubble + play its audio
   useEffect(() => {
-    if (initialized && session.opening && messages.length === 0 && !session.isLoading) {
-      addCoachMessage(session.opening);
-      if (pendingAudio) {
-        const playSequentially = async () => {
-          // Play intro_script audio first (if present)
-          if (pendingAudio.introScriptAudio) {
-            await playMp3(pendingAudio.introScriptAudio);
-          }
-          // Then play opening audio
-          if (pendingAudio.openingAudio) {
-            await playMp3(pendingAudio.openingAudio);
-          }
-        };
-        playSequentially();
-        setPendingAudio(null);
-      }
+    if (!initialized || !session.opening || session.isLoading || openingAddedRef.current) {
+      return;
     }
-  }, [initialized, session.opening, session.isLoading, messages.length, addCoachMessage, pendingAudio, playMp3]);
+
+    // Mark as added immediately to prevent double-fire
+    openingAddedRef.current = true;
+
+    const playIntroThenOpening = async () => {
+      const audio = pendingAudio;
+      setPendingAudio(null);
+
+      // Step 1: Play intro_script audio (audio only, no text on screen)
+      if (audio?.introScriptAudio) {
+        try {
+          await playMp3(audio.introScriptAudio);
+        } catch {
+          // Intro audio failed - continue to opening
+        }
+      }
+
+      // Step 2: Show opening bubble and play its audio
+      addCoachMessage(session.opening);
+      if (audio?.openingAudio) {
+        try {
+          await playMp3(audio.openingAudio);
+        } catch {
+          // Opening audio failed - bubble is already shown
+        }
+      }
+    };
+
+    playIntroThenOpening();
+  }, [initialized, session.opening, session.isLoading, addCoachMessage, pendingAudio, playMp3]);
 
   const handleEndConversation = useCallback(async () => {
     setShowReview(true);
@@ -116,6 +134,7 @@ function ChatContent() {
 
   const handleSwitchStyle = useCallback(
     async (style: CoachStyle) => {
+      openingAddedRef.current = false; // Reset guard for new session
       clearMessages();
       const audio = await switchStyle(style);
       setPendingAudio(audio);
@@ -132,6 +151,7 @@ function ChatContent() {
     setShowReview(false);
     setReviewContent('');
     setPracticeTurns([]);
+    openingAddedRef.current = false; // Reset guard for new session
     clearMessages();
     const audio = await resetSession();
     setPendingAudio(audio);

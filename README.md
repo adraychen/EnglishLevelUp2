@@ -65,6 +65,22 @@ conversation laid out turn by turn: Morgan's lines, the student's original
 lines, and a **Better** line wherever a sentence can be said more naturally.
 Dora sessions show a simpler error review.
 
+### Review modal timing
+The review modal opens only **after** the coach's closing audio finishes playing.
+This ensures the student hears the complete closing remark before the modal appears.
+
+Flow for the closing turn:
+1. Student sends their final message
+2. Coach's closing reply is displayed in the chat
+3. TTS audio plays the closing line
+4. App waits for audio to finish (or handles failure gracefully)
+5. Brief pause (300ms) for smooth transition
+6. Review modal opens
+
+If the TTS audio fails or is unavailable, the modal still opens (no stuck state).
+For non-closing turns, audio plays without blocking — the student can continue
+typing while the coach speaks.
+
 ### The practice round (shadowing)
 From the review, the student can start a **practice round** that replays the
 finished conversation as exchanges (Morgan's line + student's line together):
