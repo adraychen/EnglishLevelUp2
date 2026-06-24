@@ -22,15 +22,8 @@ RULES:
 - Keep the student's meaning and their words wherever possible — make the smallest changes
   needed to make it sound natural and correct.
 - If the sentence is already natural and correct, return it EXACTLY as it is, unchanged.
-- NEVER remove, drop, shorten, or truncate any part of the sentence. The corrected sentence
-  must keep ALL of the student's content and all of their sentences. If they wrote two
-  sentences, return two sentences. Only fix errors within the text — never delete parts.
 - Do NOT change style or word choice just because you prefer a different word.
 - Do NOT add or remove information. Do NOT make it longer or fancier.
-- Do NOT add hyphens to join words (for example, keep "medium dark roast" as is — do NOT
-  change it to "medium-dark roast"). Never introduce hyphenation.
-- Do NOT make punctuation-only or purely stylistic changes. If the only thing you would
-  change is punctuation or style, return the sentence UNCHANGED.
 - Optional contractions ("I am" / "I'm") and informal-but-correct expressions are fine —
   leave them alone.
 

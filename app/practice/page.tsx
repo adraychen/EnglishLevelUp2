@@ -36,13 +36,14 @@ export default function PracticePage() {
   const handleComplete = useCallback(() => {
     // Clear the stored turns
     sessionStorage.removeItem('practiceTurns');
-    // Go back to chat
-    router.push('/chat');
+    // Go back to chat with Morgan (practice is always after a Morgan session)
+    router.push('/chat?style=clear');
   }, [router]);
 
   const handleExit = useCallback(() => {
     // Keep the turns in case they want to try again
-    router.push('/chat');
+    // Go back to chat with Morgan (practice is always after a Morgan session)
+    router.push('/chat?style=clear');
   }, [router]);
 
   if (isLoading) {
