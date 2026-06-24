@@ -33,6 +33,27 @@ function parseOpeningText(rawOpening: unknown): string {
   return '';
 }
 
+/**
+ * Pick a random opening line from a newline-separated list.
+ * If there's only one line (or no newlines), returns it as-is.
+ */
+function pickRandomOpening(openingText: string): string {
+  if (!openingText) return '';
+
+  // Split by newlines, trim each line, and remove empty lines
+  const lines = openingText
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  if (lines.length === 0) return '';
+  if (lines.length === 1) return lines[0];
+
+  // Pick one at random
+  const randomIndex = Math.floor(Math.random() * lines.length);
+  return lines[randomIndex];
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -77,7 +98,9 @@ export async function POST(request: NextRequest) {
         topicId = topic.id;
         const topicName = topic.name || 'our topic';
         const intro = topic.intro || '';
-        const openingText = parseOpeningText(topic.opening);
+        const rawOpeningText = parseOpeningText(topic.opening);
+        // Pick a random opening if there are multiple (newline-separated)
+        const openingText = pickRandomOpening(rawOpeningText);
 
         if (topic.is_first_visit) {
           // First time with this topic — show intro + opening
