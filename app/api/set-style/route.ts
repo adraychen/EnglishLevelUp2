@@ -96,24 +96,13 @@ export async function POST(request: NextRequest) {
 
       if (topic) {
         topicId = topic.id;
-        const topicName = topic.name || 'our topic';
-        const intro = topic.intro || '';
         const rawOpeningText = parseOpeningText(topic.opening);
         // Pick a random opening if there are multiple (newline-separated)
         const openingText = pickRandomOpening(rawOpeningText);
 
-        if (topic.is_first_visit) {
-          // First time with this topic — show intro + opening
-          if (intro) {
-            // Combine intro and opening naturally
-            opening = `${intro} ${openingText}`.trim();
-          } else {
-            opening = openingText || 'Say anything to start chatting!';
-          }
-        } else {
-          // Revisiting — use welcome back style
-          opening = `Welcome back! Let's chat more about ${topicName}. How are you doing today?`;
-        }
+        // Opening is always just the chosen opening line.
+        // The topic intro is delivered separately as intro_script audio — never glue it on.
+        opening = openingText || 'Say anything to start chatting!';
       }
     }
 
