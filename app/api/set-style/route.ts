@@ -40,17 +40,20 @@ function parseOpeningText(rawOpening: unknown): string {
 function pickRandomOpening(openingText: string): string {
   if (!openingText) return '';
 
-  // Split by newlines, trim each line, and remove empty lines
+  // Split by newlines (handle both \r\n and \n), trim each line, and remove empty lines
   const lines = openingText
-    .split('\n')
+    .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
+
+  console.log('DEBUG pickRandomOpening: found', lines.length, 'opening lines');
 
   if (lines.length === 0) return '';
   if (lines.length === 1) return lines[0];
 
   // Pick one at random
   const randomIndex = Math.floor(Math.random() * lines.length);
+  console.log('DEBUG pickRandomOpening: picked index', randomIndex);
   return lines[randomIndex];
 }
 
